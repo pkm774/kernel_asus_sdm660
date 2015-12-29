@@ -20,13 +20,19 @@
 # define __pmem		__attribute__((noderef, address_space(5)))
 #ifdef CONFIG_SPARSE_RCU_POINTER
 # define __rcu		__attribute__((noderef, address_space(4)))
-#else
+#else /* CONFIG_SPARSE_RCU_POINTER */
 # define __rcu
-#endif
+#endif /* CONFIG_SPARSE_RCU_POINTER */
+# define __private	__attribute__((noderef))
 extern void __chk_user_ptr(const volatile void __user *);
 extern void __chk_io_ptr(const volatile void __iomem *);
-#else
-# define __user
+# define ACCESS_PRIVATE(p, member) (*((typeof((p)->member) __force *) &(p)->member))
+#else /* __CHECKER__ */
+# ifdef STRUCTLEAK_PLUGIN
+#  define __user __attribute__((user))
+# else
+#  define __user
+# endif
 # define __kernel
 # define __safe
 # define __force
@@ -44,7 +50,9 @@ extern void __chk_io_ptr(const volatile void __iomem *);
 # define __percpu
 # define __rcu
 # define __pmem
-#endif
+# define __private
+# define ACCESS_PRIVATE(p, member) ((p)->member)
+#endif /* __CHECKER__ */
 
 /* Indirect macros required for expanded argument pasting, eg. __LINE__. */
 #define ___PASTE(a,b) a##b
