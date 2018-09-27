@@ -57,6 +57,7 @@
 #include <linux/miscdevice.h>
 #include <linux/list.h>
 #include <linux/device.h>
+#include <linux/kobject.h>
 /* Huaqin modify for ZQL1650-1523 by diganyun at 2018/06/07 start */
 #include <asm/uaccess.h>
 #include <linux/proc_fs.h>
@@ -1107,7 +1108,84 @@ static ssize_t synaptics_rmi4_virtual_key_map_show(struct kobject *kobj,
 /* Huaqin modify  for ZQL1650-1523 by diganyun at 2018/06/07 start */
 
 long syna_gesture_mode = 0;
+long syna_screen_gesture = 0;
 struct synaptics_rmi4_data *syna_rmi4_data;
+struct kobject *syna_gesture_kobject;
+
+static ssize_t gesture_show(struct kobject *kobj, struct kobj_attribute *attr,
+                      char *buf)
+{
+        return sprintf(buf, "%d\n", syna_gesture_mode);
+}
+
+static ssize_t gesture_store(struct kobject *kobj, struct kobj_attribute *attr,
+                      char *buf, size_t count)
+{
+	sscanf(buf, "%du", &syna_gesture_mode);
+	if (syna_gesture_mode == 0) {
+		syna_gesture_mode = 0;
+		syna_rmi4_data->enable_wakeup_gesture = 0;
+	} else {
+		syna_gesture_mode = 0x1FF;
+		syna_rmi4_data->enable_wakeup_gesture = 1;
+	}
+	pr_err("syna_gesture_mode = 0x%x, enable_wakeup_gesture = %d \n", (unsigned int)syna_gesture_mode, syna_rmi4_data->enable_wakeup_gesture);
+	return count;
+}
+
+static struct kobj_attribute gesture_attribute = __ATTR(dclicknode, 0664, gesture_show,
+                                                   gesture_store);
+
+static ssize_t screengesture_show(struct kobject *kobj, struct kobj_attribute *attr,
+                      char *buf)
+{
+        return sprintf(buf, "%d\n", syna_screen_gesture);
+}
+
+static ssize_t screengesture_store(struct kobject *kobj, struct kobj_attribute *attr,
+                      char *buf, size_t count)
+{
+	sscanf(buf, "%du", &syna_screen_gesture);
+	if (syna_screen_gesture == 0) {
+		syna_gesture_mode = 0;
+		syna_rmi4_data->enable_wakeup_gesture = 0;
+	} else {
+		syna_gesture_mode = 0x1FF;
+		syna_rmi4_data->enable_wakeup_gesture = 1;
+	}
+	pr_err("syna_gesture_mode = 0x%x, enable_wakeup_gesture = %d \n", (unsigned int)syna_gesture_mode, syna_rmi4_data->enable_wakeup_gesture);
+	return count;
+}
+
+static struct kobj_attribute screengesture_attribute = __ATTR(gesture_node, 0664, screengesture_show,
+                                                   screengesture_store);
+
+int create_gesture_node_syna(void) {
+	int error = 0, error2 = 0;
+
+        syna_gesture_kobject = kobject_create_and_add("touchpanel",
+                                                 kernel_kobj);
+        if(!syna_gesture_kobject)
+                return -ENOMEM;
+
+        pr_err("[Syna-ts] : Gesture Node initialized successfully \n");
+
+        error = sysfs_create_file(syna_gesture_kobject, &gesture_attribute.attr);
+        if (error) {
+                pr_err("[Syna-ts] : failed to create the gesture_node file in /sys/kernel/touchpanel \n");
+        }
+
+        error2 = sysfs_create_file(syna_gesture_kobject, &screengesture_attribute.attr);
+        if (error) {
+                pr_err("[Syna-ts] : failed to create the gesture_node file in /sys/kernel/touchpanel \n");
+        }
+
+        return error;
+}
+
+void destroy_gesture_syna(void) {
+	kobject_put(syna_gesture_kobject);
+}
 
 static ssize_t syna_gesture_mode_get_proc(struct file *file,
                         char __user *buffer, size_t size, loff_t *ppos)
@@ -4539,7 +4617,7 @@ int syna_test_node_init(struct platform_device *tpinfo_device)
 
 static int synaptics_rmi4_probe(struct platform_device *pdev)
 {
-	int retval;
+	int retval, er = 0;
 	unsigned char attr_count;
 	struct synaptics_rmi4_data *rmi4_data;
 	const struct synaptics_dsx_hw_interface *hw_if;
@@ -4732,6 +4810,7 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	syna_test_node_init(&hwinfo_device);
 /* Huaqin add by diganyun for ITO test 2018/05/23 end */
 /* Huaqin modify  for ZQL1650-1523 by diganyun at 2018/06/07 start */
+		er = create_gesture_node_syna();
 		syna_gesture_mode_proc = proc_create(SYNA_GESTURE_MODE, 0666, NULL,
 					&syna_gesture_mode_proc_ops);
 		if (!syna_gesture_mode_proc) {
@@ -5182,6 +5261,7 @@ static void __exit synaptics_rmi4_exit(void)
 {
 	platform_driver_unregister(&synaptics_rmi4_driver);
 
+	destroy_gesture_syna();
 	synaptics_rmi4_bus_exit();
 
 	return;
