@@ -121,5 +121,4 @@ static inline unsigned long __invoke_psci_fn_smc(unsigned long function_id,
 	arm_smccc_smc(function_id, arg0, arg1, arg2, 0, 0, 0, 0, &res);
 	return res.a0;
 }
-
 #endif /*__LINUX_ARM_SMCCC_H*/
