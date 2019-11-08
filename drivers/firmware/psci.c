@@ -14,7 +14,6 @@
 #define pr_fmt(fmt) "psci: " fmt
 
 #include <linux/arm-smccc.h>
-#include <linux/cpuidle.h>
 #include <linux/errno.h>
 #include <linux/linkage.h>
 #include <linux/of.h>
@@ -27,6 +26,7 @@
 
 #include <uapi/linux/psci.h>
 
+#include <linux/cpuidle.h>
 #include <asm/cpuidle.h>
 #include <asm/cputype.h>
 #include <asm/system_misc.h>
@@ -107,6 +107,26 @@ bool psci_power_state_is_valid(u32 state)
 			       PSCI_0_2_POWER_STATE_MASK;
 
 	return !(state & ~valid_mask);
+}
+
+static unsigned long __invoke_psci_fn_hvc(unsigned long function_id,
+			unsigned long arg0, unsigned long arg1,
+			unsigned long arg2)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_hvc(function_id, arg0, arg1, arg2, 0, 0, 0, 0, &res);
+	return res.a0;
+}
+
+static unsigned long __invoke_psci_fn_smc(unsigned long function_id,
+			unsigned long arg0, unsigned long arg1,
+			unsigned long arg2)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(function_id, arg0, arg1, arg2, 0, 0, 0, 0, &res);
+	return res.a0;
 }
 
 static int psci_to_linux_errno(int errno)
