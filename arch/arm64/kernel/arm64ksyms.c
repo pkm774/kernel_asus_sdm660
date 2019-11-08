@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/kprobes.h>
 #include <linux/export.h>
 #include <linux/sched.h>
 #include <linux/string.h>
@@ -26,7 +27,7 @@
 #include <linux/syscalls.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
-#include <linux/kprobes.h>
+
 #include <linux/arm-smccc.h>
 
 #include <asm/cacheflush.h>
@@ -72,6 +73,7 @@ EXPORT_SYMBOL(test_and_change_bit);
 EXPORT_SYMBOL(_mcount);
 NOKPROBE_SYMBOL(_mcount);
 #endif
+
 	/* caching functions */
 EXPORT_SYMBOL(__dma_inv_range);
 EXPORT_SYMBOL(__dma_clean_range);
