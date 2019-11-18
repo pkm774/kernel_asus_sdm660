@@ -3150,9 +3150,6 @@ static struct device_node *mdss_dsi_pref_prim_panel(
  *
  * returns pointer to panel node on success, NULL on error.
  */
-// Huaqin add for nvt_tp check function. by zhengwu.lu. at 2018/03/01  start
-int nvt_tp_check = 0;
-// Huaqin add for nvt_tp check function. by zhengwu.lu. at 2018/03/01  end
 static struct device_node *mdss_dsi_find_panel_of_node(
 		struct platform_device *pdev, char *panel_cfg)
 {
@@ -3219,12 +3216,6 @@ static struct device_node *mdss_dsi_find_panel_of_node(
 		}
 		pr_info("%s: cmdline:%s panel_name:%s\n",
 			__func__, panel_cfg, panel_name);
-// Huaqin add for nvt_tp check function. by zhengwu.lu. at 2018/03/01  start
-		if (!strcmp(panel_name,"qcom,mdss_dsi_nt36672_1080p_video"))
-			nvt_tp_check = 0;
-		else if (!strcmp(panel_name,"qcom,mdss_dsi_nt36672_1080p_video_txd"))
-			nvt_tp_check = 1;
-// Huaqin add for nvt_tp check function. by zhengwu.lu. at 2018/03/01  end
 		if (!strcmp(panel_name, NONE_PANEL))
 			goto exit;
 
