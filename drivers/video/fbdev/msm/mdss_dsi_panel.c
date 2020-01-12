@@ -31,6 +31,7 @@
 /* Huaqin modify for Modification sequence by qimaokang at 2018/05/31 end */
 
 #define DT_CMD_HDR 6
+#define MIN_REFRESH_RATE 48
 #define DEFAULT_MDP_TRANSFER_TIME 14000
 
 #define VSYNC_DELAY msecs_to_jiffies(17)
@@ -2318,7 +2319,7 @@ static int mdss_dsi_set_refresh_rate_range(struct device_node *pan_node,
 		 * If min refresh rate is not specified, set it to the
 		 * default panel refresh rate.
 		 */
-		pinfo->min_fps = pinfo->mipi.frame_rate;
+		pinfo->min_fps = MIN_REFRESH_RATE;
 		rc = 0;
 	}
 
