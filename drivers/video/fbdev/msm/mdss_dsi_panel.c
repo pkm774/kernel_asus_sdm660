@@ -186,9 +186,7 @@ static void mdss_dsi_panel_apply_settings(struct mdss_dsi_ctrl_pdata *ctrl,
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 }
 
-/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 start */
-//static
-void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
+static void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 			struct dsi_panel_cmds *pcmds, u32 flags)
 /* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 end */
 {
@@ -2965,10 +2963,6 @@ static int mdss_panel_parse_dt(struct device_node *np,
 
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
 		"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
-/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 start */
-	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->esd_recover_cmds,
-		"qcom,mdss-dsi-esd-recover-command", "qcom,mdss-dsi-esd-recover-command-state");
-/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 end */
 	rc = of_property_read_u32(np, "qcom,adjust-timer-wakeup-ms", &tmp);
 	pinfo->adjust_timer_delay_ms = (!rc ? tmp : 0);
 

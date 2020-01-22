@@ -371,9 +371,7 @@ static int mdss_dsi_regulator_init(struct platform_device *pdev,
 
 	return rc;
 }
-/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 start */
-extern void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,struct dsi_panel_cmds *pcmds, u32 flags);
-/* Huaqin modify for ZQL1650 by xieguoqiang at 2018/02/09 end */
+
 static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 {
 	int ret = 0;
