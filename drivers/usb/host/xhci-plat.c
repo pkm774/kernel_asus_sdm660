@@ -344,12 +344,7 @@ static int xhci_plat_resume(struct device *dev)
 	struct usb_hcd *hcd = dev_get_drvdata(dev);
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 
-	if (!xhci)
-		return 0;
-
-	dev_dbg(dev, "xhci-plat PM resume\n");
-
-	return (!hcd_to_bus(hcd)->skip_resume) ? xhci_resume(xhci, false) : 0;
+	return xhci_resume(xhci, 0);
 }
 #endif
 
