@@ -220,14 +220,6 @@ static int hid_add_usage(struct hid_parser *parser, unsigned usage)
 	}
 	parser->local.usage[parser->local.usage_index] = usage;
 
-	/*
-	 * If Usage item only includes usage id, concatenate it with
-	 * currently defined usage page
-	 */
-	if (size <= 2)
-		complete_usage(parser, parser->local.usage_index);
-
-	parser->local.usage_size[parser->local.usage_index] = size;
 	parser->local.collection_index[parser->local.usage_index] =
 		parser->collection_stack_ptr ?
 		parser->collection_stack[parser->collection_stack_ptr - 1] : 0;
