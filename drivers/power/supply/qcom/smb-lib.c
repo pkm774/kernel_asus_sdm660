@@ -4259,30 +4259,30 @@ void asus_adapter_adc_work(struct work_struct *work)
 	//determine current-setting value for DCP type AC:
 	switch (ASUS_ADAPTER_ID) {
 	case ASUS_750K:
-			usb_max_current = ICL_2000mA;
+			usb_max_current = ICL_3000mA;
 		break;
 	case ASUS_200K:
-			usb_max_current = ICL_2000mA;
+			usb_max_current = ICL_3000mA;
 		break;
 	case PB:
-			usb_max_current = ICL_2000mA;
+			usb_max_current = ICL_3000mA;
 		break;
 	case OTHERS:
 /* Huaqin modify for ZQL1650-74 Countrycode Adapter by diganyun at 2018/03/26 start */
 		if(BR_countrycode == COUNTRY_BR || BR_countrycode == COUNTRY_IN)
 			{
-			usb_max_current = ICL_2000mA;
+			usb_max_current = ICL_3000mA;
 			printk("country  BR or IN \n");
 			}
 		else
 			{
 			printk("ASUS_ADAPTER_ID  OTHERS \n");
-			usb_max_current = ICL_1000mA;
+			usb_max_current = ICL_3000mA;
 			}
 /* Huaqin modify for ZQL1650-74 Countrycode Adapter by diganyun at 2018/03/26 end */
 		break;
 	case ADC_NOT_READY:
-		usb_max_current = ICL_1000mA;
+		usb_max_current = ICL_1500mA;
 		break;
 	}
 	rc = smblib_set_usb_suspend(smbchg_dev, 0);
