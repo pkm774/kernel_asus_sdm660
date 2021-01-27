@@ -1091,8 +1091,12 @@ fb_blank(struct fb_info *info, int blank)
 }
 EXPORT_SYMBOL(fb_blank);
 
+/* Huaqin modify for No repetition lcd suspend by qimaokang at 2018/12/07 start*/
+bool lcd_suspend_flag = false;
+/* Huaqin modify for No repetition lcd suspend by qimaokang at 2018/12/07 end*/
+
 static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
-			unsigned long arg)
+			unsigned long arg, struct file *file)
 {
 	struct fb_ops *fb;
 	struct fb_var_screeninfo var;
@@ -1103,6 +1107,13 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	struct fb_event event;
 	void __user *argp = (void __user *)arg;
 	long ret = 0;
+
+	memset(&var, 0, sizeof(var));
+	memset(&fix, 0, sizeof(fix));
+	memset(&con2fb, 0, sizeof(con2fb));
+	memset(&cmap_from, 0, sizeof(cmap_from));
+	memset(&cmap, 0, sizeof(cmap));
+	memset(&event, 0, sizeof(event));
 
 	switch (cmd) {
 	case FBIOGET_VSCREENINFO:
@@ -1213,20 +1224,25 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			return -ENODEV;
 		}
 		info->flags |= FBINFO_MISC_USEREVENT;
+/* Huaqin modify for No repetition lcd suspend by qimaokang at 2018/12/07 start*/
+		if (arg == FB_BLANK_POWERDOWN) {
+			lcd_suspend_flag = true;
+			printk("[Display] FB_BLANK_POWERDOWN\n");
+		}
+/* Huaqin modify for No repetition lcd suspend by qimaokang at 2018/12/07 end*/
 		ret = fb_blank(info, arg);
 		info->flags &= ~FBINFO_MISC_USEREVENT;
 		unlock_fb_info(info);
 		console_unlock();
 		break;
 	default:
-		if (!lock_fb_info(info))
-			return -ENODEV;
 		fb = info->fbops;
-		if (fb->fb_ioctl)
+		if (fb->fb_ioctl_v2)
+			ret = fb->fb_ioctl_v2(info, cmd, arg, file);
+		else if (fb->fb_ioctl)
 			ret = fb->fb_ioctl(info, cmd, arg);
 		else
 			ret = -ENOTTY;
-		unlock_fb_info(info);
 	}
 	return ret;
 }
@@ -1237,7 +1253,7 @@ static long fb_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	if (!info)
 		return -ENODEV;
-	return do_fb_ioctl(info, cmd, arg);
+	return do_fb_ioctl(info, cmd, arg, file);
 }
 
 #ifdef CONFIG_COMPAT
@@ -1268,7 +1284,7 @@ struct fb_cmap32 {
 };
 
 static int fb_getput_cmap(struct fb_info *info, unsigned int cmd,
-			  unsigned long arg)
+			  unsigned long arg, struct file *file)
 {
 	struct fb_cmap_user __user *cmap;
 	struct fb_cmap32 __user *cmap32;
@@ -1291,7 +1307,7 @@ static int fb_getput_cmap(struct fb_info *info, unsigned int cmd,
 	    put_user(compat_ptr(data), &cmap->transp))
 		return -EFAULT;
 
-	err = do_fb_ioctl(info, cmd, (unsigned long) cmap);
+	err = do_fb_ioctl(info, cmd, (unsigned long) cmap, file);
 
 	if (!err) {
 		if (copy_in_user(&cmap32->start,
@@ -1336,7 +1352,7 @@ static int do_fscreeninfo_to_user(struct fb_fix_screeninfo *fix,
 }
 
 static int fb_get_fscreeninfo(struct fb_info *info, unsigned int cmd,
-			      unsigned long arg)
+			      unsigned long arg, struct file *file)
 {
 	mm_segment_t old_fs;
 	struct fb_fix_screeninfo fix;
@@ -1347,7 +1363,7 @@ static int fb_get_fscreeninfo(struct fb_info *info, unsigned int cmd,
 
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
-	err = do_fb_ioctl(info, cmd, (unsigned long) &fix);
+	err = do_fb_ioctl(info, cmd, (unsigned long) &fix, file);
 	set_fs(old_fs);
 
 	if (!err)
@@ -1374,20 +1390,22 @@ static long fb_compat_ioctl(struct file *file, unsigned int cmd,
 	case FBIOPUT_CON2FBMAP:
 		arg = (unsigned long) compat_ptr(arg);
 	case FBIOBLANK:
-		ret = do_fb_ioctl(info, cmd, arg);
+		ret = do_fb_ioctl(info, cmd, arg, file);
 		break;
 
 	case FBIOGET_FSCREENINFO:
-		ret = fb_get_fscreeninfo(info, cmd, arg);
+		ret = fb_get_fscreeninfo(info, cmd, arg, file);
 		break;
 
 	case FBIOGETCMAP:
 	case FBIOPUTCMAP:
-		ret = fb_getput_cmap(info, cmd, arg);
+		ret = fb_getput_cmap(info, cmd, arg, file);
 		break;
 
 	default:
-		if (fb->fb_compat_ioctl)
+		if (fb->fb_compat_ioctl_v2)
+			ret = fb->fb_compat_ioctl_v2(info, cmd, arg, file);
+		else if (fb->fb_compat_ioctl)
 			ret = fb->fb_compat_ioctl(info, cmd, arg);
 		break;
 	}
@@ -1467,6 +1485,7 @@ __releases(&info->lock)
 		goto out;
 	}
 	file->private_data = info;
+	info->file = file;
 	if (info->fbops->fb_open) {
 		res = info->fbops->fb_open(info,1);
 		if (res)
@@ -1491,6 +1510,7 @@ __releases(&info->lock)
 	struct fb_info * const info = file->private_data;
 
 	mutex_lock(&info->lock);
+	info->file = file;
 	if (info->fbops->fb_release)
 		info->fbops->fb_release(info,1);
 	module_put(info->fbops->owner);

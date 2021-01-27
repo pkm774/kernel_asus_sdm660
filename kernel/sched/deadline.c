@@ -18,6 +18,8 @@
 
 #include <linux/slab.h>
 
+#include "walt.h"
+
 struct dl_bandwidth def_dl_bandwidth;
 
 static inline struct task_struct *dl_task_of(struct sched_dl_entity *dl_se)
@@ -41,6 +43,24 @@ static inline struct dl_rq *dl_rq_of_se(struct sched_dl_entity *dl_se)
 static inline int on_dl_rq(struct sched_dl_entity *dl_se)
 {
 	return !RB_EMPTY_NODE(&dl_se->rb_node);
+}
+
+static void add_average_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
+{
+	u64 se_bw = dl_se->dl_bw;
+
+	dl_rq->avg_bw += se_bw;
+}
+
+static void clear_average_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
+{
+	u64 se_bw = dl_se->dl_bw;
+
+	dl_rq->avg_bw -= se_bw;
+	if (dl_rq->avg_bw < 0) {
+		WARN_ON(1);
+		dl_rq->avg_bw = 0;
+	}
 }
 
 static inline int is_leftmost(struct task_struct *p, struct dl_rq *dl_rq)
@@ -271,9 +291,11 @@ static struct rq *dl_task_offline_migration(struct rq *rq, struct task_struct *p
 	/*
 	 * By now the task is replenished and enqueued; migrate it.
 	 */
+	p->on_rq = TASK_ON_RQ_MIGRATING;
 	deactivate_task(rq, p, 0);
 	set_task_cpu(p, later_rq->cpu);
 	activate_task(later_rq, p, 0);
+	p->on_rq = TASK_ON_RQ_QUEUED;
 
 	if (!fallback)
 		resched_curr(later_rq);
@@ -565,6 +587,9 @@ static void update_dl_entity(struct sched_dl_entity *dl_se,
 	struct dl_rq *dl_rq = dl_rq_of_se(dl_se);
 	struct rq *rq = rq_of_dl_rq(dl_rq);
 
+	if (dl_se->dl_new)
+		add_average_bw(dl_se, dl_rq);
+
 	/*
 	 * The arrival of a new instance needs special treatment, i.e.,
 	 * the actual scheduling parameters have to be "renewed".
@@ -849,6 +874,9 @@ static void update_curr_dl(struct rq *rq)
 	if (unlikely((s64)delta_exec <= 0))
 		return;
 
+	/* kick cpufreq (see the comment in kernel/sched/sched.h). */
+	cpufreq_update_this_cpu(rq, SCHED_CPUFREQ_DL);
+
 	schedstat_set(curr->se.statistics.exec_max,
 		      max(curr->se.statistics.exec_max, delta_exec));
 
@@ -857,8 +885,6 @@ static void update_curr_dl(struct rq *rq)
 
 	curr->se.exec_start = rq_clock_task(rq);
 	cpuacct_charge(curr, delta_exec);
-
-	sched_rt_avg_update(rq, delta_exec);
 
 	dl_se->runtime -= dl_se->dl_yielded ? 0 : delta_exec;
 	if (dl_runtime_exceeded(dl_se)) {
@@ -968,6 +994,41 @@ static inline void dec_dl_deadline(struct dl_rq *dl_rq, u64 deadline) {}
 
 #endif /* CONFIG_SMP */
 
+#ifdef CONFIG_SCHED_HMP
+
+static void
+inc_hmp_sched_stats_dl(struct rq *rq, struct task_struct *p)
+{
+	inc_cumulative_runnable_avg(&rq->hmp_stats, p);
+}
+
+static void
+dec_hmp_sched_stats_dl(struct rq *rq, struct task_struct *p)
+{
+	dec_cumulative_runnable_avg(&rq->hmp_stats, p);
+}
+
+static void
+fixup_hmp_sched_stats_dl(struct rq *rq, struct task_struct *p,
+			 u32 new_task_load, u32 new_pred_demand)
+{
+	s64 task_load_delta = (s64)new_task_load - task_load(p);
+	s64 pred_demand_delta = PRED_DEMAND_DELTA;
+
+	fixup_cumulative_runnable_avg(&rq->hmp_stats, p, task_load_delta,
+				      pred_demand_delta);
+}
+
+#else	/* CONFIG_SCHED_HMP */
+
+static inline void
+inc_hmp_sched_stats_dl(struct rq *rq, struct task_struct *p) { }
+
+static inline void
+dec_hmp_sched_stats_dl(struct rq *rq, struct task_struct *p) { }
+
+#endif	/* CONFIG_SCHED_HMP */
+
 static inline
 void inc_dl_tasks(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
 {
@@ -977,6 +1038,7 @@ void inc_dl_tasks(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
 	WARN_ON(!dl_prio(prio));
 	dl_rq->dl_nr_running++;
 	add_nr_running(rq_of_dl_rq(dl_rq), 1);
+	inc_hmp_sched_stats_dl(rq_of_dl_rq(dl_rq), dl_task_of(dl_se));
 
 	inc_dl_deadline(dl_rq, deadline);
 	inc_dl_migration(dl_se, dl_rq);
@@ -991,6 +1053,7 @@ void dec_dl_tasks(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
 	WARN_ON(!dl_rq->dl_nr_running);
 	dl_rq->dl_nr_running--;
 	sub_nr_running(rq_of_dl_rq(dl_rq), 1);
+	dec_hmp_sched_stats_dl(rq_of_dl_rq(dl_rq), dl_task_of(dl_se));
 
 	dec_dl_deadline(dl_rq, dl_se->deadline);
 	dec_dl_migration(dl_se, dl_rq);
@@ -1170,7 +1233,8 @@ static void yield_task_dl(struct rq *rq)
 static int find_later_rq(struct task_struct *task);
 
 static int
-select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags,
+		  int sibling_count_hint)
 {
 	struct task_struct *curr;
 	struct rq *rq;
@@ -1367,6 +1431,8 @@ static void task_fork_dl(struct task_struct *p)
 static void task_dead_dl(struct task_struct *p)
 {
 	struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
+	struct dl_rq *dl_rq = dl_rq_of_se(&p->dl);
+	struct rq *rq = rq_of_dl_rq(dl_rq);
 
 	/*
 	 * Since we are TASK_DEAD we won't slip out of the domain!
@@ -1375,6 +1441,8 @@ static void task_dead_dl(struct task_struct *p)
 	/* XXX we should retain the bw until 0-lag */
 	dl_b->total_bw -= p->dl.dl_bw;
 	raw_spin_unlock_irq(&dl_b->lock);
+
+	clear_average_bw(&p->dl, &rq->dl);
 }
 
 static void set_curr_task_dl(struct rq *rq)
@@ -1681,9 +1749,15 @@ retry:
 		goto retry;
 	}
 
+	next_task->on_rq = TASK_ON_RQ_MIGRATING;
 	deactivate_task(rq, next_task, 0);
+	clear_average_bw(&next_task->dl, &rq->dl);
+	next_task->on_rq = TASK_ON_RQ_MIGRATING;
 	set_task_cpu(next_task, later_rq->cpu);
+	next_task->on_rq = TASK_ON_RQ_QUEUED;
+	add_average_bw(&next_task->dl, &later_rq->dl);
 	activate_task(later_rq, next_task, 0);
+	next_task->on_rq = TASK_ON_RQ_QUEUED;
 	ret = 1;
 
 	resched_curr(later_rq);
@@ -1769,9 +1843,15 @@ static void pull_dl_task(struct rq *this_rq)
 
 			resched = true;
 
+			p->on_rq = TASK_ON_RQ_MIGRATING;
 			deactivate_task(src_rq, p, 0);
+			clear_average_bw(&p->dl, &src_rq->dl);
+			p->on_rq = TASK_ON_RQ_MIGRATING;
 			set_task_cpu(p, this_cpu);
+			p->on_rq = TASK_ON_RQ_QUEUED;
+			add_average_bw(&p->dl, &this_rq->dl);
 			activate_task(this_rq, p, 0);
+			p->on_rq = TASK_ON_RQ_QUEUED;
 			dmin = p->dl.deadline;
 
 			/* Is there any other task even earlier? */
@@ -1876,6 +1956,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
 	if (!start_dl_timer(p))
 		__dl_clear_params(p);
 
+	clear_average_bw(&p->dl, &rq->dl);
+
 	/*
 	 * Since this might be the only -deadline task on the rq,
 	 * this is the right place to try to pull some other one
@@ -1971,6 +2053,11 @@ const struct sched_class dl_sched_class = {
 	.switched_to		= switched_to_dl,
 
 	.update_curr		= update_curr_dl,
+#ifdef CONFIG_SCHED_HMP
+	.inc_hmp_sched_stats	= inc_hmp_sched_stats_dl,
+	.dec_hmp_sched_stats	= dec_hmp_sched_stats_dl,
+	.fixup_hmp_sched_stats	= fixup_hmp_sched_stats_dl,
+#endif
 };
 
 #ifdef CONFIG_SCHED_DEBUG

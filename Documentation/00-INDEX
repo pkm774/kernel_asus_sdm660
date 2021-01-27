@@ -91,6 +91,8 @@ basic_profiling.txt
 	- basic instructions for those who wants to profile Linux kernel.
 bcache.txt
 	- Block-layer cache on fast SSDs to improve slow (raid) I/O performance.
+bif-framework.txt
+	- information about MIPI-BIF support in the Linux kernel.
 binfmt_misc.txt
 	- info on the kernel support for extra binary formats.
 blackfin/
@@ -435,6 +437,8 @@ sysrq.txt
 	- info on the magic SysRq key.
 target/
 	- directory with info on generating TCM v4 fabric .ko modules
+tee.txt
+	- info on the TEE subsystem and drivers
 this_cpu_ops.txt
 	- List rationale behind and the way to use this_cpu operations.
 thermal/

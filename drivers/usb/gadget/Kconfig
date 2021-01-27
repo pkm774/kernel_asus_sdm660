@@ -151,6 +151,9 @@ config USB_U_SERIAL
 config USB_U_ETHER
 	tristate
 
+config USB_U_AUDIO
+	tristate
+
 config USB_F_SERIAL
 	tristate
 
@@ -175,6 +178,12 @@ config USB_F_SUBSET
 config USB_F_RNDIS
 	tristate
 
+config USB_F_QCRNDIS
+	tristate
+
+config USB_F_RMNET_BAM
+	tristate
+
 config USB_F_MASS_STORAGE
 	tristate
 
@@ -182,6 +191,9 @@ config USB_F_FS
 	tristate
 
 config USB_F_UAC1
+	tristate
+
+config USB_F_UAC1_LEGACY
 	tristate
 
 config USB_F_UAC2
@@ -197,6 +209,33 @@ config USB_F_HID
 	tristate
 
 config USB_F_PRINTER
+	tristate
+
+config USB_F_MTP
+	tristate
+
+config USB_F_PTP
+        tristate
+
+config USB_F_AUDIO_SRC
+	tristate
+
+config USB_F_ACC
+	tristate
+
+config USB_F_DIAG
+	tristate
+
+config USB_F_GSI
+	tristate
+
+config USB_F_CDEV
+	tristate
+
+config USB_F_QDSS
+	tristate
+
+config USB_F_CCID
 	tristate
 
 choice
@@ -294,6 +333,14 @@ config USB_CONFIGFS_ECM_SUBSET
 	  On hardware that can't implement the full protocol,
 	  a simple CDC subset is used, placing fewer demands on USB.
 
+config USB_CONFIGFS_QCRNDIS
+	bool "QCRNDIS"
+	depends on USB_CONFIGFS
+	depends on RNDIS_IPA
+	depends on NET
+	select USB_U_ETHER
+	select USB_F_QCRNDIS
+
 config USB_CONFIGFS_RNDIS
 	bool "RNDIS"
 	depends on USB_CONFIGFS
@@ -309,6 +356,12 @@ config USB_CONFIGFS_RNDIS
 	   as the "driver info file".  For versions of MS-Windows older than
 	   XP, you'll need to download drivers from Microsoft's website; a URL
 	   is given in comments found in that info file.
+
+config USB_CONFIGFS_RMNET_BAM
+	bool "RMNET"
+	depends on USB_CONFIGFS
+	depends on IPA
+	select USB_F_RMNET_BAM
 
 config USB_CONFIGFS_EEM
 	bool "Ethernet Emulation Model (EEM)"
@@ -371,18 +424,74 @@ config USB_CONFIGFS_F_FS
 	  implemented in kernel space (for instance Ethernet, serial or
 	  mass storage) and other are implemented in user space.
 
+config USB_CONFIGFS_F_MTP
+	boolean "MTP gadget"
+	depends on USB_CONFIGFS
+	select USB_F_MTP
+	help
+	  USB gadget MTP support
+
+config USB_CONFIGFS_F_PTP
+	boolean "PTP gadget"
+	depends on USB_CONFIGFS && USB_CONFIGFS_F_MTP
+	select USB_F_PTP
+	help
+	  USB gadget PTP support
+
+config USB_CONFIGFS_F_ACC
+	boolean "Accessory gadget"
+	depends on USB_CONFIGFS
+	select USB_F_ACC
+	help
+	  USB gadget Accessory support
+
+config USB_CONFIGFS_F_AUDIO_SRC
+	boolean "Audio Source gadget"
+	depends on USB_CONFIGFS && USB_CONFIGFS_F_ACC
+	depends on SND
+	select SND_PCM
+	select USB_F_AUDIO_SRC
+	help
+	  USB gadget Audio Source support
+
+config USB_CONFIGFS_UEVENT
+	boolean "Uevent notification of Gadget state"
+	depends on USB_CONFIGFS
+	help
+	  Enable uevent notifications to userspace when the gadget
+	  state changes. The gadget can be in any of the following
+	  three states: "CONNECTED/DISCONNECTED/CONFIGURED"
+
 config USB_CONFIGFS_F_UAC1
 	bool "Audio Class 1.0"
 	depends on USB_CONFIGFS
 	depends on SND
 	select USB_LIBCOMPOSITE
 	select SND_PCM
+	select USB_U_AUDIO
 	select USB_F_UAC1
 	help
 	  This Audio function implements 1 AudioControl interface,
 	  1 AudioStreaming Interface each for USB-OUT and USB-IN.
-	  This driver requires a real Audio codec to be present
-	  on the device.
+	  This driver doesn't expect any real Audio codec to be present
+	  on the device - the audio streams are simply sinked to and
+	  sourced from a virtual ALSA sound card created. The user-space
+	  application may choose to do whatever it wants with the data
+	  received from the USB Host and choose to provide whatever it
+	  wants as audio data to the USB Host.
+
+config USB_CONFIGFS_F_UAC1_LEGACY
+	bool "Audio Class 1.0 (legacy implementation)"
+	depends on USB_CONFIGFS
+	depends on SND
+	select USB_LIBCOMPOSITE
+	select SND_PCM
+	select USB_F_UAC1_LEGACY
+	help
+	  This Audio function implements 1 AudioControl interface,
+	  1 AudioStreaming Interface each for USB-OUT and USB-IN.
+	  This is a legacy driver and requires a real Audio codec
+	  to be present on the device.
 
 config USB_CONFIGFS_F_UAC2
 	bool "Audio Class 2.0"
@@ -390,6 +499,7 @@ config USB_CONFIGFS_F_UAC2
 	depends on SND
 	select USB_LIBCOMPOSITE
 	select SND_PCM
+	select USB_U_AUDIO
 	select USB_F_UAC2
 	help
 	  This Audio function is compatible with USB Audio Class
@@ -450,6 +560,43 @@ config USB_CONFIGFS_F_PRINTER
 
 	  For more information, see Documentation/usb/gadget_printer.txt
 	  which includes sample code for accessing the device file.
+
+config USB_CONFIGFS_F_DIAG
+	bool "USB Diag function"
+	select USB_F_DIAG
+	depends on USB_CONFIGFS
+	help
+	  Diag function driver enables support for Qualcomm diagnostics
+	  port over USB.
+
+config USB_CONFIGFS_F_GSI
+	bool "USB GSI function"
+	select USB_F_GSI
+	depends on USB_CONFIGFS
+	help
+	  Generic function driver to support h/w acceleration to IPA over GSI.
+
+config USB_CONFIGFS_F_CDEV
+	bool "USB Serial Character function"
+	select USB_F_CDEV
+	depends on USB_CONFIGFS
+	help
+	  Generic USB serial character function driver to support DUN/NMEA.
+
+config USB_CONFIGFS_F_QDSS
+	bool "USB QDSS function"
+	select USB_F_QDSS
+	depends on USB_CONFIGFS
+	help
+	  USB QDSS function driver to get hwtracing related data over USB.
+
+config USB_CONFIGFS_F_CCID
+	bool "USB CCID function"
+	select USB_F_CCID
+	depends on USB_CONFIGFS
+	help
+	  USB CCID function driver creats transport layer between the
+	  userspace CCID component and the Windows Host.
 
 source "drivers/usb/gadget/legacy/Kconfig"
 

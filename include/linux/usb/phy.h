@@ -44,6 +44,7 @@ enum usb_otg_state {
 	OTG_STATE_B_IDLE,
 	OTG_STATE_B_SRP_INIT,
 	OTG_STATE_B_PERIPHERAL,
+	OTG_STATE_B_SUSPEND,
 
 	/* extra dual-role default-b states */
 	OTG_STATE_B_WAIT_ACON,
@@ -122,6 +123,12 @@ struct usb_phy {
 			enum usb_device_speed speed);
 	int	(*notify_disconnect)(struct usb_phy *x,
 			enum usb_device_speed speed);
+
+	/* reset the PHY clocks */
+	int	(*reset)(struct usb_phy *x);
+
+	/* return linestate with Idp_src (used for DCD with USB2 PHY) */
+	int (*dpdm_with_idp_src)(struct usb_phy *x);
 };
 
 /**
@@ -194,6 +201,24 @@ usb_phy_vbus_off(struct usb_phy *x)
 		return 0;
 
 	return x->set_vbus(x, false);
+}
+
+static inline int
+usb_phy_reset(struct usb_phy *x)
+{
+	if (x && x->reset)
+		return x->reset(x);
+
+	return 0;
+}
+
+static inline int
+usb_phy_dpdm_with_idp_src(struct usb_phy *x)
+{
+	if (x && x->dpdm_with_idp_src)
+		return x->dpdm_with_idp_src(x);
+
+	return 0;
 }
 
 /* for usb host and peripheral controller drivers */

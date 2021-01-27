@@ -223,8 +223,18 @@ static unsigned long jiffies_min_age;
 static unsigned long jiffies_last_scan;
 /* delay between automatic memory scannings */
 static signed long jiffies_scan_wait;
-/* enables or disables the task stacks scanning */
+
+/* Enables or disables the task stacks scanning.
+ * Set to 1 if at compile time we want it enabled.
+ * Else set to 0 to have it disabled by default.
+ * This can be enabled by writing to "stack=on" using
+ * kmemleak debugfs entry.*/
+#ifdef CONFIG_DEBUG_TASK_STACK_SCAN_OFF
+static int kmemleak_stack_scan;
+#else
 static int kmemleak_stack_scan = 1;
+#endif
+
 /* protects the memory scanning, parameters and debug/kmemleak file access */
 static DEFINE_MUTEX(scan_mutex);
 /* setting kmemleak=on, will set this var, skipping the disable */
@@ -597,8 +607,7 @@ static struct kmemleak_object *create_object(unsigned long ptr, size_t size,
 		else if (parent->pointer + parent->size <= ptr)
 			link = &parent->rb_node.rb_right;
 		else {
-			kmemleak_stop("Cannot insert 0x%lx into the object "
-				      "search tree (overlaps existing)\n",
+			kmemleak_stop("Cannot insert 0x%lx into the object search tree (overlaps existing)\n",
 				      ptr);
 			/*
 			 * No need for parent->lock here since "parent" cannot
@@ -671,8 +680,8 @@ static void delete_object_part(unsigned long ptr, size_t size)
 	object = find_and_remove_object(ptr, 1);
 	if (!object) {
 #ifdef DEBUG
-		kmemleak_warn("Partially freeing unknown object at 0x%08lx "
-			      "(size %zu)\n", ptr, size);
+		kmemleak_warn("Partially freeing unknown object at 0x%08lx (size %zu)\n",
+			      ptr, size);
 #endif
 		return;
 	}
@@ -718,8 +727,8 @@ static void paint_ptr(unsigned long ptr, int color)
 
 	object = find_and_get_object(ptr, 0);
 	if (!object) {
-		kmemleak_warn("Trying to color unknown object "
-			      "at 0x%08lx as %s\n", ptr,
+		kmemleak_warn("Trying to color unknown object at 0x%08lx as %s\n",
+			      ptr,
 			      (color == KMEMLEAK_GREY) ? "Grey" :
 			      (color == KMEMLEAK_BLACK) ? "Black" : "Unknown");
 		return;
@@ -1466,8 +1475,8 @@ static void kmemleak_scan(void)
 	if (new_leaks) {
 		kmemleak_found_leaks = true;
 
-		pr_info("%d new suspected memory leaks (see "
-			"/sys/kernel/debug/kmemleak)\n", new_leaks);
+		pr_info("%d new suspected memory leaks (see /sys/kernel/debug/kmemleak)\n",
+			new_leaks);
 	}
 
 }
@@ -1800,8 +1809,7 @@ static void kmemleak_do_cleanup(struct work_struct *work)
 	if (!kmemleak_found_leaks)
 		__kmemleak_do_cleanup();
 	else
-		pr_info("Kmemleak disabled without freeing internal data. "
-			"Reclaim the memory with \"echo clear > /sys/kernel/debug/kmemleak\"\n");
+		pr_info("Kmemleak disabled without freeing internal data. Reclaim the memory with \"echo clear > /sys/kernel/debug/kmemleak\".\n");
 }
 
 static DECLARE_WORK(cleanup_work, kmemleak_do_cleanup);
