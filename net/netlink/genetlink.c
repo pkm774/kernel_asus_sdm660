@@ -1007,7 +1007,7 @@ static struct genl_multicast_group genl_ctrl_groups[] = {
 	{ .name = "notify", },
 };
 
-static int genl_bind(struct net *net, int group)
+/*static int genl_bind(struct net *net, int group)
 {
 	int i, err = 0;
 
@@ -1055,7 +1055,7 @@ static void genl_unbind(struct net *net, int group)
 		}
 	}
 	up_read(&cb_lock);
-}
+}*/
 
 static int __net_init genl_pernet_init(struct net *net)
 {
