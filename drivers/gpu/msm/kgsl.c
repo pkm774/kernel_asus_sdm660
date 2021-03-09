@@ -1877,7 +1877,7 @@ static long gpumem_free_entry(struct kgsl_mem_entry *entry)
 	if (!kgsl_mem_entry_set_pend(entry))
 		return -EBUSY;
 
-	trace_kgsl_mem_free(entry);
+//	trace_kgsl_mem_free(entry);
 
 	if (entry->memdesc.pagetable != NULL)
 		ptname = entry->memdesc.pagetable->name;
