@@ -431,8 +431,8 @@ const uint16_t gesture_key_array[] = {
 static uint8_t bTouchIsAwake = 0;
 
 #if WAKEUP_GESTURE
-long gesture_mode = 1;
-static int allow_gesture = 0;
+long gesture_mode = 0;
+static int allow_gesture = 1;
 static struct kobject *gesture_kobject;
 
 static ssize_t gesture_show(struct kobject *kobj, struct kobj_attribute *attr,

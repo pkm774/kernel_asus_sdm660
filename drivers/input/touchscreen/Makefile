@@ -70,6 +70,7 @@ obj-$(CONFIG_TOUCHSCREEN_STMPE)		+= stmpe-ts.o
 obj-$(CONFIG_TOUCHSCREEN_SUN4I)		+= sun4i-ts.o
 obj-$(CONFIG_TOUCHSCREEN_SUR40)		+= sur40.o
 #obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_v21) += synaptics_dsx/
+obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_v27) += synaptics_dsx_2.7/
 obj-$(CONFIG_TOUCHSCREEN_TI_AM335X_TSC)	+= ti_am335x_tsc.o
 obj-$(CONFIG_TOUCHSCREEN_TOUCHIT213)	+= touchit213.o
 obj-$(CONFIG_TOUCHSCREEN_TOUCHRIGHT)	+= touchright.o
@@ -101,6 +102,3 @@ obj-$(CONFIG_TOUCHSCREEN_ST)		+= st/
 #Huaqin modify for ZQL1650-137 by zhengwu.lu at 2018/01/22 start
 obj-$(CONFIG_TOUCHSCREEN_NT36xxx)	+= NVT_Touch/
 #Huaqin modify for ZQL1650-137 by zhengwu.lu at 2018/01/22 end
-#Huaqin modify for ZQL1650-1357 by diganyun at 2018/05/22 start
-obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX) += synaptics_dsx_2.7/
-#Huaqin modify for ZQL1650-1357 by diganyun at 2018/05/22 end
