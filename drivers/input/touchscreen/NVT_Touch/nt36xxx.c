@@ -432,7 +432,8 @@ static uint8_t bTouchIsAwake = 0;
 
 #if WAKEUP_GESTURE
 long gesture_mode = 0;
-static int allow_gesture = 1;
+static int allow_gesture = 0;
+static int screenoff_gesture = 1;
 static struct kobject *gesture_kobject;
 
 static ssize_t gesture_show(struct kobject *kobj, struct kobj_attribute *attr,
@@ -451,8 +452,24 @@ static ssize_t gesture_store(struct kobject *kobj, struct kobj_attribute *attr,
 static struct kobj_attribute gesture_attribute = __ATTR(dclicknode, 0664, gesture_show,
                                                    gesture_store);
 
+static ssize_t screenoffgesture_show(struct kobject *kobj, struct kobj_attribute *attr,
+                      char *buf)
+{
+        return sprintf(buf, "%d\n", screenoff_gesture);
+}
+
+static ssize_t screenoffgesture_store(struct kobject *kobj, struct kobj_attribute *attr,
+                      const char *buf, size_t count)
+{
+        sscanf(buf, "%du", &screenoff_gesture);
+        return count;
+}
+
+static struct kobj_attribute screenoffgesture_attribute = __ATTR(gesture_node, 0664, screenoffgesture_show,
+                                                   screenoffgesture_store);
+
 int create_gesture_node(void) {
-	int error = 0;
+	int error = 0, error2 = 0;
         NVT_LOG("[Nvt-ts] : Gesture Node initialized successfully \n");
 
         gesture_kobject = kobject_create_and_add("touchpanel",
@@ -464,7 +481,12 @@ int create_gesture_node(void) {
         if (error) {
                 NVT_LOG("[Nvt-ts] : failed to create the gesture_node file in /sys/kernel/touchpanel \n");
         }
-
+        
+        error2 = sysfs_create_file(gesture_kobject, &screenoffgesture_attribute.attr);
+        if (error2) {
+                NVT_LOG("[Nvt-ts] : failed to create the gesture_node file in /sys/kernel/touchpanel \n");
+        }
+        
         return error;
 }
 
@@ -1068,19 +1090,19 @@ void nvt_ts_wakeup_gesture_report(uint8_t gesture_id)
 
 	switch (gesture_id) {
 		case ID_GESTURE_WORD_C:
-			if (allow_gesture) {
+			if (screenoff_gesture) {
 				NVT_LOG("Gesture : Word-C.\n");
 				keycode = gesture_key_array[0];
 			}
 			break;
 		case ID_GESTURE_WORD_W:
-			if (allow_gesture) {
+			if (screenoff_gesture) {
 				NVT_LOG("Gesture : Word-W.\n");
 				keycode = gesture_key_array[1];
 			}
 			break;
 		case ID_GESTURE_WORD_V:
-			if (allow_gesture) {
+			if (screenoff_gesture) {
 				NVT_LOG("Gesture : Word-V.\n");
 				keycode = gesture_key_array[2];
 			}
@@ -1093,7 +1115,7 @@ void nvt_ts_wakeup_gesture_report(uint8_t gesture_id)
 			}
 			break;
 		case ID_GESTURE_WORD_Z:
-			if (allow_gesture) {
+			if (screenoff_gesture) {
 				NVT_LOG("Gesture : Word-Z.\n");
 				keycode = gesture_key_array[4];
 			}
@@ -1107,37 +1129,37 @@ void nvt_ts_wakeup_gesture_report(uint8_t gesture_id)
 			keycode = gesture_key_array[6];
 			break; */
 		case ID_GESTURE_WORD_e:
-			if (allow_gesture) {
+			if (screenoff_gesture) {
 				NVT_LOG("Gesture : Word-e.\n");
 				keycode = gesture_key_array[7];
 			}
 			break;
 		case ID_GESTURE_WORD_S:
-			if (allow_gesture) {
+			if (screenoff_gesture) {
 				NVT_LOG("Gesture : Word-S.\n");
 				keycode = gesture_key_array[8];
 			}
 			break;
 		case ID_GESTURE_SLIDE_UP:
-			if (allow_gesture) {
+			if (screenoff_gesture) {
 				NVT_LOG("Gesture : Slide UP.\n");
 				keycode = gesture_key_array[9];
 			}
 			break;
 		case ID_GESTURE_SLIDE_DOWN:
-			if (allow_gesture) {
+			if (screenoff_gesture) {
 				NVT_LOG("Gesture : Slide DOWN.\n");
 				keycode = gesture_key_array[10];
 			}
 			break;
 		case ID_GESTURE_SLIDE_LEFT:
-			if (allow_gesture) {
+			if (screenoff_gesture) {
 				NVT_LOG("Gesture : Slide LEFT.\n");
 				keycode = gesture_key_array[11];
 			}
 			break;
 		case ID_GESTURE_SLIDE_RIGHT:
-			if (allow_gesture) {
+			if (screenoff_gesture) {
 				NVT_LOG("Gesture : Slide RIGHT.\n");
 				keycode = gesture_key_array[12];
 			}
@@ -1919,7 +1941,7 @@ static int32_t nvt_ts_suspend(struct device *dev)
 // Huaqin add for esd check function. by zhengwu.lu. at 2018/2/28  end
 
 #if WAKEUP_GESTURE
-	if (!allow_gesture) {
+	if (!allow_gesture && !screenoff_gesture) {
 // Huaqin add for ctp lose efficacy by zhengwu.lu. at 2018/04/18 For Platform start
 		//disable_irq(ts->client->irq);
 		nvt_irq_disable();
@@ -1973,12 +1995,12 @@ static int32_t nvt_ts_suspend(struct device *dev)
 	msleep(50);
 
 	mutex_unlock(&ts->lock);
-	if (!allow_gesture) {
-	nvt_lcm_power_source_ctrl(data, 0);//disable vsp/vsn
-	NVT_LOG("sleep suspend end  disable vsp/vsn\n");
+	if (!allow_gesture && !screenoff_gesture) {
+	    nvt_lcm_power_source_ctrl(data, 0);//disable vsp/vsn
+	    NVT_LOG("sleep suspend end  disable vsp/vsn\n");
 	}
 	else{
-	NVT_LOG("gesture suspend end not disable vsp/vsn\n");
+	    NVT_LOG("gesture suspend end not disable vsp/vsn\n");
 	}
 
 	NVT_LOG("end\n");

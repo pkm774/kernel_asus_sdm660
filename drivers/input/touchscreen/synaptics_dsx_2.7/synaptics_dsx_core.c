@@ -1106,7 +1106,7 @@ long syna_gesture_mode;
 struct synaptics_rmi4_data *syna_rmi4_data;
 
 static int allow_gesture = 0;
-static int screen_gesture = 1;
+static int screenoff_gesture = 1;
 static struct kobject *gesture_kobject;
 
 static ssize_t gesture_show(struct kobject *kobj, struct kobj_attribute *attr,
@@ -1133,17 +1133,17 @@ static ssize_t gesture_store(struct kobject *kobj, struct kobj_attribute *attr,
 static struct kobj_attribute gesture_attribute = __ATTR(dclicknode, 0664, gesture_show,
                                                    gesture_store);
 
-static ssize_t screengesture_show(struct kobject *kobj, struct kobj_attribute *attr,
+static ssize_t screenoffgesture_show(struct kobject *kobj, struct kobj_attribute *attr,
                       char *buf)
 {
-        return sprintf(buf, "%d\n", screen_gesture);
+        return sprintf(buf, "%d\n", screenoff_gesture);
 }
 
-static ssize_t screengesture_store(struct kobject *kobj, struct kobj_attribute *attr,
+static ssize_t screenoffgesture_store(struct kobject *kobj, struct kobj_attribute *attr,
                       const char *buf, size_t count)
 {
-        sscanf(buf, "%du", &screen_gesture);
-	if (screen_gesture == 0) {
+        sscanf(buf, "%du", &screenoff_gesture);
+	if (screenoff_gesture == 0) {
 		syna_gesture_mode = 0;
 		syna_rmi4_data->enable_wakeup_gesture = 0;
 	} else {
@@ -1154,8 +1154,8 @@ static ssize_t screengesture_store(struct kobject *kobj, struct kobj_attribute *
         return count;
 }
 
-static struct kobj_attribute screengesture_attribute = __ATTR(gesture_node, 0664, screengesture_show,
-                                                   screengesture_store);
+static struct kobj_attribute screengesture_attribute = __ATTR(gesture_node, 0664, screenoffgesture_show,
+                                                   screenoffgesture_store);
 
 int create_gesture_node_syna(void) {
 	int error = 0, error2 = 0;
