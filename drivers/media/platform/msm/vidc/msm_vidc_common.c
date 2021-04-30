@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, 2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -714,11 +714,12 @@ static void handle_sys_init_done(enum hal_command_response cmd, void *data)
 
 static void put_inst_helper(struct kref *kref)
 {
-	struct msm_vidc_inst *inst = container_of(kref, struct msm_vidc_inst,
-			kref);
+	struct msm_vidc_inst *inst = container_of(kref,
+					struct msm_vidc_inst, kref);
 
 	msm_vidc_destroy(inst);
 }
+
 
 static void put_inst(struct msm_vidc_inst *inst)
 {
@@ -2801,7 +2802,7 @@ static int msm_vidc_deinit_core(struct msm_vidc_inst *inst)
 		 * will have a burst of back to back video playback sessions
 		 * e.g. thumbnail generation.
 		 */
-		schedule_delayed_work(&core->fw_unload_work,
+		queue_delayed_work(system_power_efficient_wq, &core->fw_unload_work,
 			msecs_to_jiffies(core->state == VIDC_CORE_INVALID ?
 					0 : msm_vidc_firmware_unload_delay));
 

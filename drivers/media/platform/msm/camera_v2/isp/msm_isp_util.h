@@ -18,7 +18,11 @@
 
 /* #define CONFIG_MSM_ISP_DBG 1 */
 
-#define ISP_DBG(fmt, args...)
+#ifdef CONFIG_MSM_ISP_DBG
+#define ISP_DBG(fmt, args...) printk(fmt, ##args)
+#else
+#define ISP_DBG(fmt, args...) pr_debug(fmt, ##args)
+#endif
 
 #define ALT_VECTOR_IDX(x) {x = 3 - x; }
 
