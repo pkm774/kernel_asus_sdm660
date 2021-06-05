@@ -17,8 +17,8 @@ TOP=$(realpath ../)
 # export aosp toolchains path 
 export PATH="$TOP/tools/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin:$PATH"
 export PATH="$TOP/tools/gcc/linux-x86/arm/arm-linux-androideabi-4.9/bin:$PATH"
-export PATH="$TOP/tools/clang/host/linux-x86/clang-r407598/bin:$PATH"
-export LD_LIBRARY_PATH="$TOP/tools/clang/host/linux-x86/clang-r407598/lib64:$LD_LIBRARY_PATH"
+export PATH="$TOP/tools/clang/host/linux-x86/clang-r416183b/bin:$PATH"
+export LD_LIBRARY_PATH="$TOP/tools/clang/host/linux-x86/clang-r416183b/lib64:$LD_LIBRARY_PATH"
 
 # export required kernel flags
 export ARCH=arm64
