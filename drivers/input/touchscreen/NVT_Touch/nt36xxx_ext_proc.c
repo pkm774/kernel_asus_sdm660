@@ -22,9 +22,6 @@
 #include <linux/delay.h>
 
 #include "nt36xxx.h"
-// Huaqin add for nvt_tp check function. by zhengwu.lu. at 2018/03/01  start
-#include "../../../../drivers/video/fbdev/msm/mdss_dsi.h"
-// Huaqin add for nvt_tp check function. by zhengwu.lu. at 2018/03/01  end
 
 #if NVT_TOUCH_EXT_PROC
 /* Huaqin add by yuexinghan for TP hardwareinfo, 20171027 start */
@@ -260,13 +257,9 @@ static int32_t c_fw_version_show(struct seq_file *m, void *v)
 // Huaqin add for nvt_tp check function. by zhengwu.lu. at 2018/03/01  start
 	seq_printf(m, "vendor=Novatek\n");
 	seq_printf(m, "IC=nvt36672\n");
-	NVT_LOG("zhengwu1 nvt_tp_check=%d\n",nvt_tp_check);
-	if(nvt_tp_check == 0){
-	seq_printf(m, "module=DJ\n");
-	}
-	else if (nvt_tp_check == 1){
+
+	/* qcom,mdss_dsi_nt36672_1080p_video_txd */
 	seq_printf(m, "module=TXD\n");
-	}
 // Huaqin add for nvt_tp check function. by zhengwu.lu. at 2018/03/01  end
 	seq_printf(m, "fw_ver=%d, x_num=%d, y_num=%d, button_num=%d\n", ts->fw_ver, ts->x_num, ts->y_num, ts->max_button_num);
 	return 0;
