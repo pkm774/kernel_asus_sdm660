@@ -668,12 +668,13 @@
 #define KEY_SARSENSOR_FAR		0x2eb
 
 /* Huaqin add  for TT1176710 by liunianliang at 2018/03/30 start */
-#define KEY_TP_GESTURE_W 	0x2ec
-#define KEY_TP_GESTURE_E 	0x2ed
-#define KEY_TP_GESTURE_S 	0x2ee
-#define KEY_TP_GESTURE_Z 	0x2ef
-#define KEY_TP_GESTURE_C 	0x2f0
-#define KEY_TP_GESTURE_V 	0x2f1
+#define KEY_TP_GESTURE_W 	748
+#define KEY_TP_GESTURE_E 	749
+#define KEY_TP_GESTURE_S 	750
+#define KEY_TP_GESTURE_Z 	751
+#define KEY_TP_GESTURE_C 	752
+#define KEY_TP_GESTURE_V 	753
+#define KEY_TP_GESTURE_SWIPE_UP	758
 /* Huaqin add  for TT1176710 by liunianliang at 2018/03/30 end */
 
 /* We avoid low common keys in module aliases so they don't get huge. */
