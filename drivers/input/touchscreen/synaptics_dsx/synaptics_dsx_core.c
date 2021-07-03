@@ -64,7 +64,6 @@
 /* Huaqin modify for ZQL1650-1523 by diganyun at 2018/06/07 end */
 /* Huaqin add by diganyun for ITO test 2018/05/23 end */
 
-
 #define INPUT_PHYS_NAME "synaptics_dsx/touch_input"
 #define STYLUS_PHYS_NAME "synaptics_dsx/stylus"
 
@@ -1313,9 +1312,9 @@ static void synaptics_rmi4_f12_wg(struct synaptics_rmi4_data *rmi4_data,
 	}
 
 	if (enable)
-		reporting_control[2] = F12_WAKEUP_GESTURE_MODE;
+		reporting_control[rmi4_data->set_wakeup_gesture] = F12_WAKEUP_GESTURE_MODE;
 	else
-		reporting_control[2] = F12_CONTINUOUS_MODE;
+		reporting_control[rmi4_data->set_wakeup_gesture] = F12_CONTINUOUS_MODE;
 
 	retval = synaptics_rmi4_reg_write(rmi4_data,
 			fhandler->full_addr.ctrl_base + offset,
@@ -2083,7 +2082,6 @@ static void synaptics_rmi4_sensor_report(struct synaptics_rmi4_data *rmi4_data,
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
 	struct synaptics_rmi4_device_info *rmi;
 
-
 	rmi = &(rmi4_data->rmi4_mod_info);
 
 	/*
@@ -2220,7 +2218,6 @@ static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
 {
 	int retval = 0;
 	unsigned char data[MAX_INTR_REGISTERS];
-
 	const struct synaptics_dsx_board_data *bdata =
 			rmi4_data->hw_if->board_data;
 
@@ -2254,12 +2251,10 @@ static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
 					__func__);
 			goto exit;
 		}
-		//(bdata->irq_flags) |= IRQF_ONESHOT;
+
 		retval = request_threaded_irq(rmi4_data->irq, NULL,
 				synaptics_rmi4_irq, bdata->irq_flags,
 				PLATFORM_DRIVER_NAME, rmi4_data);
-
-		printk(" %s: irq=%d\n", __func__, rmi4_data->irq);
 		if (retval < 0) {
 			dev_err(rmi4_data->pdev->dev.parent,
 					"%s: Failed to create irq thread\n",
@@ -2869,7 +2864,18 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 			ctrl_23_size++;
 		else if (retval < 0)
 			goto exit;
+
 	}
+
+	retval = synaptics_rmi4_f12_find_sub(rmi4_data,
+			fhandler, query_5->data, sizeof(query_5->data),
+			6, 20, 0);
+	if (retval == 1)
+		rmi4_data->set_wakeup_gesture = 2;
+	else if (retval == 0)
+		rmi4_data->set_wakeup_gesture = 0;
+	else if (retval < 0)
+		goto exit;
 
 	retval = synaptics_rmi4_reg_read(rmi4_data,
 			fhandler->full_addr.ctrl_base + ctrl_23_offset,
@@ -3875,6 +3881,7 @@ static int synaptics_rmi4_set_input_dev(struct synaptics_rmi4_data *rmi4_data)
 	rmi4_data->input_dev->id.version = SYNAPTICS_DSX_DRIVER_VERSION;
 	rmi4_data->input_dev->dev.parent = rmi4_data->pdev->dev.parent;
 	input_set_drvdata(rmi4_data->input_dev, rmi4_data);
+
 	set_bit(EV_SYN, rmi4_data->input_dev->evbit);
 	set_bit(EV_KEY, rmi4_data->input_dev->evbit);
 	set_bit(EV_ABS, rmi4_data->input_dev->evbit);
@@ -4611,14 +4618,11 @@ int syna_test_node_init(struct platform_device *tpinfo_device)
 
 static int synaptics_rmi4_probe(struct platform_device *pdev)
 {
-	int retval, er = 0;
+	int retval = 0, er = 0;
 	unsigned char attr_count;
 	struct synaptics_rmi4_data *rmi4_data;
 	const struct synaptics_dsx_hw_interface *hw_if;
 	const struct synaptics_dsx_board_data *bdata;
-	dev_err(&pdev->dev,
-					"%s:  func to synaptics_rmi4_probe\n",
-					__func__);
 
 	hw_if = pdev->dev.platform_data;
 	if (!hw_if) {
@@ -4693,7 +4697,8 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 				__func__);
 		goto err_set_gpio;
 	}
-    // Huaqin add for vsp/vsn. by zhengwu.lu. at 2018/03/07  start
+
+// Huaqin add for vsp/vsn. by zhengwu.lu. at 2018/03/07  start
 #if SYNA_POWER_SOURCE_CUST_EN
 	atomic_set(&(rmi4_data->lcm_lab_power), 0);
 	atomic_set(&(rmi4_data->lcm_ibb_power), 0);
@@ -4750,8 +4755,6 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	}
 
 	rmi4_data->irq = gpio_to_irq(bdata->irq_gpio);
-
-	printk(" %s  rmi4_data->irq = %d ,bdata->irq_gpio = %d\n",__func__, rmi4_data->irq ,bdata->irq_gpio);
 
 	retval = synaptics_rmi4_irq_enable(rmi4_data, true, false);
 	if (retval < 0) {
@@ -4811,7 +4814,6 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 			pr_err("create proc tpd_gesture failed\n");
 		}
 /* Huaqin modify  for ZQL1650-1523 by diganyun at 2018/06/07 end */
-
 
 	rmi4_data->rb_workqueue =
 			create_singlethread_workqueue("dsx_rebuild_workqueue");
@@ -5189,6 +5191,7 @@ static int synaptics_rmi4_resume(struct device *dev)
 
 	if (rmi4_data->enable_wakeup_gesture) {
 		disable_irq_wake(rmi4_data->irq);
+		synaptics_rmi4_wakeup_gesture(rmi4_data, false);
 		goto exit;
 	}
 

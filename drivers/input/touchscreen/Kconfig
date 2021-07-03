@@ -11,13 +11,6 @@ menuconfig INPUT_TOUCHSCREEN
 
 if INPUT_TOUCHSCREEN
 
-#Huaqin modify for ZQL1650-137 by zhengwu.lu at 2018/01/22 start
-source "drivers/input/touchscreen/NVT_Touch/Kconfig"
-#Huaqin modify for ZQL1650-137 by zhengwu.lu at 2018/01/22 end
-#Huaqin modify for ZQL1650-1357 by diganyun at 2018/05/22 start
-source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
-#Huaqin modify for ZQL1650-1357 by diganyun at 2018/05/22 end
-
 config OF_TOUCHSCREEN
 	def_tristate INPUT
 	depends on INPUT
@@ -1227,7 +1220,17 @@ config TOUCHSCREEN_ST
 	  Say Y here if you have a STMicroelectronics Touchscreen.
 
 	  If unsure, say N.
+	  
+config TOUCHSCREEN_SYNAPTICS_DSX
+        bool "Synaptics Touchscreen Driver"
+        depends on I2C
+        help
+          Say Y here if you have a Synaptics Touchscreen.
 
+          If unsure, say N.
+
+source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
+source "drivers/input/touchscreen/NVT_Touch/Kconfig"
 source "drivers/input/touchscreen/st/Kconfig"
 
 endif

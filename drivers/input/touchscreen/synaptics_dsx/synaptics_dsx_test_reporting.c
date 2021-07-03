@@ -319,9 +319,6 @@ enum f54_report_types {
 	F54_AMP_FULL_RAW_CAP = 78,
 	F54_AMP_RAW_ADC = 83,
 	F54_FULL_RAW_CAP_TDDI = 92,
-	F54_NOISE_TDDI = 94,
-	F54_EE_SHORT_TDDI = 95,
-	F54_ELEC_OPEN_DETECTOR_TDDI = 139,
 	INVALID_REPORT_TYPE = -1,
 };
 
@@ -1014,7 +1011,6 @@ struct f54_control_99 {
 	};
 };
 
-
 struct f54_control_110 {
 	union {
 		struct {
@@ -1452,9 +1448,9 @@ static unsigned char *g_tddi_full_raw_data_output;
 
 // a global buffer to record the testing data of tddi_noise test
 // size = tx_num * rx_num * sizeof(short)
-static signed short *g_tddi_noise_data_output;
+//static signed short *g_tddi_noise_data_output;
 /* Huaqin modify for ZQL1650-1522 by diganyun at 2018/06/06  start */
-static signed short *g_tddi_noise_data_output_1;
+//static signed short *g_tddi_noise_data_output_1;
 /* Huaqin modify for ZQL1650-1522 by diganyun at 2018/06/06  end */
 #define EE_SHORT_TEST_LIMIT_PART1  150 //100
 #define EE_SHORT_TEST_LIMIT_PART2  50  //96
@@ -1495,12 +1491,6 @@ show_store_prototype(fifoindex)
 show_store_prototype(no_auto_cal)
 show_store_prototype(read_report)
 
-show_store_prototype(tddi_full_raw)
-show_store_prototype(tddi_noise)
-show_store_prototype(tddi_ee_short)
-show_store_prototype(tddi_elec_open_detector)
-show_prototype(ito_test)
-
 static struct attribute *attrs[] = {
 	attrify(num_of_mapped_tx),
 	attrify(num_of_mapped_rx),
@@ -1521,12 +1511,6 @@ static struct attribute *attrs[] = {
 	attrify(fifoindex),
 	attrify(no_auto_cal),
 	attrify(read_report),
-
-	attrify(tddi_full_raw),
-	attrify(tddi_noise),
-	attrify(tddi_ee_short),
-	attrify(tddi_elec_open_detector),
-	attrify(ito_test),
 	NULL,
 };
 
@@ -1680,9 +1664,6 @@ static bool test_report_type_valid(enum f54_report_types report_type)
 	case F54_AMP_FULL_RAW_CAP:
 	case F54_AMP_RAW_ADC:
 	case F54_FULL_RAW_CAP_TDDI:
-	case F54_NOISE_TDDI:
-	case F54_EE_SHORT_TDDI:
-	case F54_ELEC_OPEN_DETECTOR_TDDI:
 		return true;
 		break;
 	default:
@@ -1711,6 +1692,9 @@ static void test_set_report_size(void)
 	case F54_SENSOR_SPEED:
 	case F54_AMP_FULL_RAW_CAP:
 	case F54_AMP_RAW_ADC:
+	case F54_FULL_RAW_CAP_TDDI:
+		f54->report_size = 2 * tx * rx;
+		break;
 	case F54_HIGH_RESISTANCE:
 		f54->report_size = HIGH_RESISTANCE_DATA_SIZE;
 		break;
@@ -1768,19 +1752,6 @@ static void test_set_report_size(void)
 		tx += f21->tx_assigned;
 		rx += f21->rx_assigned;
 		f54->report_size = 4 * (tx + rx);
-		break;
-	case F54_FULL_RAW_CAP_TDDI:
-		if (f55->extended_amp) {
-			tx += 1;
-		}
-		f54->report_size = 2 * tx * rx;
-		break;
-	case F54_ELEC_OPEN_DETECTOR_TDDI:
-	case F54_NOISE_TDDI:
-		f54->report_size = 2 * tx * rx;
-		break;
-	case F54_EE_SHORT_TDDI:
-		f54->report_size = 2 * 2 * tx * rx;
 		break;
 	default:
 		f54->report_size = 0;
@@ -1950,9 +1921,6 @@ static int test_do_preparation(void)
 	case F54_ABS_HYBRID_DELTA_CAP:
 	case F54_ABS_HYBRID_RAW_CAP:
 	case F54_FULL_RAW_CAP_TDDI:
-	case F54_NOISE_TDDI:
-	case F54_EE_SHORT_TDDI:
-	case F54_ELEC_OPEN_DETECTOR_TDDI:
 		break;
 	case F54_AMP_RAW_ADC:
 		if (f54->query_49.has_ctrl188) {
@@ -3141,340 +3109,6 @@ exit:
 	return retval;
 }
 
-static ssize_t test_sysfs_tddi_full_raw_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	int retval = 0;
-	int tx_num = f54->tx_assigned;
-	int rx_num = f54->rx_assigned;
-	unsigned int full_raw_report_size;
-	unsigned long setting;
-	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
-
-	retval = sstrtoul(buf, 10, &setting);
-	if (retval)
-		return retval;
-
-	if (setting != 1)
-		return -EINVAL;
-
-	// increase the tx number, if the button existed
-	if (f55->extended_amp) {
-		tx_num += 1;
-	}
-	full_raw_report_size = tx_num * rx_num * 2;
-
-	g_flag_readrt_err = false;
-
-	/* allocate the g_tddi_full_raw_data_output */
-	if (g_tddi_full_raw_data_output)
-		kfree(g_tddi_full_raw_data_output);
-
-	g_tddi_full_raw_data_output = kzalloc(full_raw_report_size, GFP_KERNEL);
-	if (!g_tddi_full_raw_data_output) {
-		dev_err(rmi4_data->pdev->dev.parent,
-				"%s: Failed to alloc mem for g_tddi_full_raw_data_output\n",
-				__func__);
-		return -ENOMEM;
-	}
-
-	/* get the report image 92 */
-	retval = test_sysfs_read_report(dev, attr, "92", 3,
-				false, false);
-	if (retval < 0) {
-		dev_err(rmi4_data->pdev->dev.parent,
-				"%s: Failed to read report 92. exit\n", __func__);
-		g_flag_readrt_err = true ;
-		return -EIO;
-	}
-
-	secure_memcpy(g_tddi_full_raw_data_output, full_raw_report_size,
-		f54->report_data, f54->report_size, f54->report_size);
-
-	retval = count;
-
-	return retval;
-}
-
-static ssize_t test_sysfs_tddi_full_raw_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-#define NUM_BUTTON 3
-	unsigned int i;
-	unsigned int j;
-	int cnt;
-	int count = 0;
-	int tx_num = f54->tx_assigned;
-	int rx_num = f54->rx_assigned;
-	unsigned short *report_data_16;
-
-	unsigned short min = 0, max = 0;
-
-	if (!g_tddi_full_raw_data_output)
-		return snprintf(buf, PAGE_SIZE, "\nERROR: no g_tddi_full_raw_data_output\n");
-
-	// check the special code if failed to get report image
-	// output the error message
-	if (g_flag_readrt_err) {
-
-		kfree(g_tddi_full_raw_data_output);
-		g_tddi_full_raw_data_output = NULL;
-
-		return snprintf(buf, PAGE_SIZE, "\nERROR: fail to read report image\n");
-	}
-
-	cnt = snprintf(buf, PAGE_SIZE - count, "tx = %d\nrx = %d\n",
-			f54->tx_assigned, f54->rx_assigned);
-	buf += cnt;
-	count += cnt;
-
-	report_data_16 = (unsigned short *)g_tddi_full_raw_data_output;
-
-	min = max = *report_data_16;
-
-	for (i = 0; i < tx_num; i++) {
-		for (j = 0; j < rx_num; j++) {
-			cnt = snprintf(buf, PAGE_SIZE - count, "%-5d ", *report_data_16);
-			min = (min < *report_data_16)? min : *report_data_16;
-			max = (max > *report_data_16)? max : *report_data_16;
-
-			report_data_16++;
-			buf += cnt;
-			count += cnt;
-		}
-		cnt = snprintf(buf, PAGE_SIZE - count, "\n");
-		buf += cnt;
-		count += cnt;
-	}
-
-	cnt = snprintf(buf, PAGE_SIZE - count, "\ndata range (max, min) = (%-4d, %-4d)\n", max, min);
-	buf += cnt;
-	count += cnt;
-
-	// if the button existed, output the data of 0D button
-	if (f55->extended_amp) {
-		cnt = snprintf(buf, PAGE_SIZE - count, "\namp button count = %d.\n", NUM_BUTTON);
-		buf += cnt;
-		count += cnt;
-
-		for (i = 0; i < NUM_BUTTON; i++) {
-			cnt = snprintf(buf, PAGE_SIZE - count, "%-5d ", *report_data_16);
-
-			report_data_16++;
-			buf += cnt;
-			count += cnt;
-		}
-		cnt = snprintf(buf, PAGE_SIZE - count, "\n");
-		buf += cnt;
-		count += cnt;
-	}
-
-	snprintf(buf, PAGE_SIZE - count, "\n");
-	count++;
-
-	kfree(g_tddi_full_raw_data_output);
-	g_tddi_full_raw_data_output = NULL;
-
-	return count;
-}
-
-static ssize_t test_sysfs_tddi_noise_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	int retval = 0;
-	int i, j, offset;
-	int tx_num = f54->tx_assigned;
-	int rx_num = f54->rx_assigned;
-	int repeat;
-
-	signed short report_data_16;
-	signed short *tddi_noise_max = NULL;
-	signed short *tddi_noise_min = NULL;
-	unsigned char *tddi_noise_data = NULL;
-	unsigned int buffer_size = tx_num * rx_num * 2;
-	unsigned long setting;
-	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
-
-	retval = sstrtoul(buf, 10, &setting);
-	if (retval)
-		return retval;
-
-	if (setting != 1)
-		return -EINVAL;
-
-	/* allocate the g_tddi_noise_data_output */
-	if (g_tddi_noise_data_output)
-		kfree(g_tddi_noise_data_output);
-
-	g_tddi_noise_data_output = (signed short *)kzalloc(tx_num * rx_num *sizeof(short), GFP_KERNEL);
-	if (!g_tddi_noise_data_output) {
-		dev_err(rmi4_data->pdev->dev.parent,
-				"%s: Failed to alloc mem for g_tddi_noise_data_output\n",
-				__func__);
-		return -ENOMEM;
-	}
-/* Huaqin modify for ZQL1650-1522 by diganyun at 2018/06/06  start */
-	if (g_tddi_noise_data_output_1)
-		kfree(g_tddi_noise_data_output_1);
-
-	g_tddi_noise_data_output_1 = (signed short *)kzalloc(tx_num * rx_num *sizeof(short), GFP_KERNEL);
-	if (!g_tddi_noise_data_output_1) {
-		dev_err(rmi4_data->pdev->dev.parent,
-				"%s: Failed to alloc mem for g_tddi_noise_data_output_1\n",
-				__func__);
-		return -ENOMEM;
-	}
-/* Huaqin modify for ZQL1650-1522 by diganyun at 2018/06/06  end */	
-	// allocate the internal buffer
-	tddi_noise_data = kzalloc(buffer_size, GFP_KERNEL);
-	if (!tddi_noise_data) {
-		dev_err(rmi4_data->pdev->dev.parent,
-				"%s: Failed to alloc mem for tddi_noise_data\n",
-				__func__);
-		retval = -ENOMEM;
-		goto exit;
-	}
-
-	tddi_noise_max = (unsigned short *)kzalloc(buffer_size, GFP_KERNEL);
-	if (!tddi_noise_max) {
-		dev_err(rmi4_data->pdev->dev.parent,
-				"%s: Failed to alloc mem for tddi_noise_max\n",
-				__func__);
-		retval = -ENOMEM;
-		goto exit;
-	}
-
-	tddi_noise_min = (unsigned short *) kzalloc(buffer_size, GFP_KERNEL);
-	if (!tddi_noise_min) {
-		dev_err(rmi4_data->pdev->dev.parent,
-				"%s: Failed to alloc mem for tddi_noise_min\n",
-				__func__);
-		retval = -ENOMEM;
-		goto exit;
-	}
-
-	g_flag_readrt_err = false;
-
-	/* get report image 94 repeatedly */
-	/* and calculate the minimum and maximun value as well */
-	for (repeat = 0 ; repeat < NOISE_TEST_NUM_OF_FRAMES; repeat++){
-
-		retval = test_sysfs_read_report(dev, attr, "94", 3,
-					false, false);
-		if (retval < 0) {
-			dev_err(rmi4_data->pdev->dev.parent,
-					"%s: Failed to read report 94 at %d round. exit\n",
-					__func__, repeat);
-			retval = -EIO;
-			g_flag_readrt_err = true;
-			goto exit;
-		}
-
-		memset(tddi_noise_data, 0x00, buffer_size);
-
-		secure_memcpy(tddi_noise_data, buffer_size,
-			f54->report_data, f54->report_size, f54->report_size);
-
-		for (i = 0, offset = 0; i < tx_num; i++) {
-			for (j = 0; j < rx_num; j++) {
-
-				report_data_16 =
-					(signed short)tddi_noise_data[offset] +
-					((signed short)tddi_noise_data[offset+1] << 8);
-				offset += 2;
-
-				tddi_noise_max[i*rx_num + j] =
-					max_t(signed short, tddi_noise_max[i*rx_num + j], report_data_16);
-				tddi_noise_min[i*rx_num + j] =
-					min_t(signed short, tddi_noise_min[i*rx_num + j], report_data_16);
-			}
-		}
-
-	}
-
-	// generate the noise delta image
-	// the value should be lower than TEST_LIMIT ( fail, if > TEST_LIMIT )
-	// 1: fail / 0 : pass
-
-	for (i = 0; i < tx_num; i++) {
-		for (j = 0; j < rx_num; j++) {
-			g_tddi_noise_data_output[i*rx_num + j] =
-				tddi_noise_max[i*rx_num + j] - tddi_noise_min[i*rx_num + j];
-
-			if (g_tddi_noise_data_output[i*rx_num + j] > NOISE_TEST_LIMIT )  {
-				dev_err(rmi4_data->pdev->dev.parent,
-						"%s: fail at (tx%-2d, rx%-2d) = %-4d (limit = %d)\n",
-						__func__, i, j, g_tddi_noise_data_output[i*rx_num + j], NOISE_TEST_LIMIT);
-
-				g_tddi_noise_data_output[i*rx_num + j] = _TEST_FAIL; // 1: fail
-			}
-			else {
-				g_tddi_noise_data_output[i*rx_num + j] = _TEST_PASS;
-			}
-
-		}
-	}
-/* Huaqin modify for ZQL1650-1522 by diganyun at 2018/06/06  start */
-	for (i = 0; i < tx_num; i++) {
-		for (j = 0; j < rx_num; j++) {
-			g_tddi_noise_data_output_1[i*rx_num + j] =
-				tddi_noise_max[i*rx_num + j] - tddi_noise_min[i*rx_num + j];
-		}
-	}
-
-	retval = test_save_data_to_csv(g_tddi_noise_data_output_1, tx_num, rx_num, NOISE_TEST_CSV_FILE, 0);
-	if (retval < 0) {
-		dev_err(rmi4_data->pdev->dev.parent, 
-			"save noise test data to CSV file failed\n");
-		return -EAGAIN;	
-	}
-/* Huaqin modify for ZQL1650-1522 by diganyun at 2018/06/06  end */
-	retval = count;
-
-exit:
-	kfree(tddi_noise_max);
-	kfree(tddi_noise_min);
-	kfree(tddi_noise_data);
-
-	return retval;
-}
-
-static ssize_t test_sysfs_tddi_noise_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	int i, j;
-	int tx_num = f54->tx_assigned;
-	int rx_num = f54->rx_assigned;
-	int fail_count = 0;
-
-	if (!g_tddi_noise_data_output)
-		return snprintf(buf, PAGE_SIZE, "\nERROR: no g_tddi_noise_data_output\n");
-
-	// check the special code if failed to get report image
-	// output the error message
-	if (g_flag_readrt_err) {
-
-		kfree(g_tddi_noise_data_output);
-		g_tddi_noise_data_output = NULL;
-
-		return snprintf(buf, PAGE_SIZE, "\nERROR: fail to read report image\n");
-	}
-
-	for (i = 0; i < tx_num; i++) {
-		for (j = 0; j < rx_num; j++) {
-			if (g_tddi_noise_data_output[i * rx_num + j] != _TEST_PASS) {
-
-				fail_count += 1;
-			}
-		}
-	}
-
-	kfree(g_tddi_noise_data_output);
-	g_tddi_noise_data_output = NULL;
-
-	return snprintf(buf, PAGE_SIZE, "%s\n", (fail_count == 0) ? "PASS" : "FAIL");
-}
-
 static short find_median(short* pdata, int num)
 {
 	int i,j;
@@ -3805,42 +3439,6 @@ exit:
 	return retval;
 }
 
-static ssize_t test_sysfs_tddi_ee_short_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	int i, j;
-	int tx_num = f54->tx_assigned;
-	int rx_num = f54->rx_assigned;
-	int fail_count = 0;
-
-	if (!g_tddi_ee_short_data_output)
-		return snprintf(buf, PAGE_SIZE, "\nERROR: no g_tddi_ee_short_data_output\n");
-
-	// check the special code if failed to get report image
-	// output the error message
-	if (g_flag_readrt_err) {
-
-		kfree(g_tddi_ee_short_data_output);
-		g_tddi_ee_short_data_output = NULL;
-
-		return snprintf(buf, PAGE_SIZE, "\nERROR: fail to read report image\n");
-	}
-
-	for (i = 0; i < tx_num; i++) {
-		for (j = 0; j < rx_num; j++) {
-			if (g_tddi_ee_short_data_output[i * rx_num + j] != _TEST_PASS) {
-
-				fail_count += 1;
-			}
-		}
-	}
-
-	kfree(g_tddi_ee_short_data_output);
-	g_tddi_ee_short_data_output = NULL;
-
-	return snprintf(buf, PAGE_SIZE, "%s\n", (fail_count == 0) ? "PASS" : "FAIL");
-}
-
 static unsigned short g_full_raw_limit_lower = 200; //300
 static unsigned short g_full_raw_limit_upper = 3800;//3000
 
@@ -4041,41 +3639,61 @@ exit:
 	return count;
 }
 
-static ssize_t test_sysfs_tddi_elec_open_detector_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t test_sysfs_tddi_full_raw_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
 {
-	int i, j;
+	int retval = 0;
 	int tx_num = f54->tx_assigned;
 	int rx_num = f54->rx_assigned;
-	int fail_count = 0;
+	unsigned int full_raw_report_size;
+	unsigned long setting;
+	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
 
-	if (!g_tddi_amp_open_data_output)
-		return snprintf(buf, PAGE_SIZE, "\nERROR: no g_tddi_amp_open_data_output\n");
+	retval = sstrtoul(buf, 10, &setting);
+	if (retval)
+		return retval;
 
-	// check the special code if failed to get report image
-	// output the error message
-	if (g_flag_readrt_err) {
+	if (setting != 1)
+		return -EINVAL;
 
-		kfree(g_tddi_amp_open_data_output);
-		g_tddi_amp_open_data_output = NULL;
+	// increase the tx number, if the button existed
+	if (f55->extended_amp) {
+		tx_num += 1;
+	}
+	full_raw_report_size = tx_num * rx_num * 2;
 
-		return snprintf(buf, PAGE_SIZE, "\nERROR: fail to read report image\n");
+	g_flag_readrt_err = false;
+
+	/* allocate the g_tddi_full_raw_data_output */
+	if (g_tddi_full_raw_data_output)
+		kfree(g_tddi_full_raw_data_output);
+
+	g_tddi_full_raw_data_output = kzalloc(full_raw_report_size, GFP_KERNEL);
+	if (!g_tddi_full_raw_data_output) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for g_tddi_full_raw_data_output\n",
+				__func__);
+		return -ENOMEM;
 	}
 
-	for (i = 0; i < tx_num; i++) {
-		for (j = 0; j < rx_num; j++) {
-			if (g_tddi_amp_open_data_output[i * rx_num + j] != _TEST_PASS) {
-
-				fail_count += 1;
-			}
-		}
+	/* get the report image 92 */
+	retval = test_sysfs_read_report(dev, attr, "92", 3,
+				false, false);
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to read report 92. exit\n", __func__);
+		g_flag_readrt_err = true ;
+		return -EIO;
 	}
 
-	kfree(g_tddi_amp_open_data_output);
-	g_tddi_amp_open_data_output = NULL;
+	secure_memcpy(g_tddi_full_raw_data_output, full_raw_report_size,
+		f54->report_data, f54->report_size, f54->report_size);
 
-	return snprintf(buf, PAGE_SIZE, "%s\n", (fail_count == 0) ? "PASS" : "FAIL");
+	retval = count;
+
+	return retval;
 }
+
 static int test_full_raw(void)
 {
 	int fail_cnt = 0;
@@ -4339,17 +3957,6 @@ ssize_t ito_test(void)
 		return 1;// 1 sucess
 	}
 }
-
-static ssize_t test_sysfs_ito_test_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	int count;
-	ito_test();
-	count = sprintf(buf, "%s\n", syna_TestResultLen == 1? "PASS" : "FAIL");
-	printk(" %s , res = %d \n", __func__, syna_TestResultLen);
-	return count;
-}
-
 
 static ssize_t test_sysfs_data_read(struct file *data_file,
 		struct kobject *kobj, struct bin_attribute *attributes,
@@ -6231,11 +5838,6 @@ static void test_f55_init(struct synaptics_rmi4_data *rmi4_data)
 
 		f54->tx_assigned = ctrl_43.afe_l_mux_size +
 				ctrl_43.afe_r_mux_size;
-		/* tddi f54 test reporting +  */
-		f54->swap_sensor_side = ctrl_43.swap_sensor_side;
-		f54->left_mux_size = ctrl_43.afe_l_mux_size;
-		f54->right_mux_size = ctrl_43.afe_r_mux_size;
-		/* tddi f54 test reporting -  */
 	}
 
 	/* force mapping */
