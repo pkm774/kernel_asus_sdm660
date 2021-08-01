@@ -32,9 +32,7 @@
 #define CYCLES_PER_MICRO_SEC_DEFAULT 4915
 #define CCI_MAX_DELAY 1000000
 
-/* Huaqin modify for fixing cci timeout by lizihao at 2018/04/03 start*/
-#define CCI_TIMEOUT msecs_to_jiffies(1000)
-/* Huaqin modify for fixing cci timeout by lizihao at 2018/04/03 end*/
+#define CCI_TIMEOUT msecs_to_jiffies(100)
 
 /* TODO move this somewhere else */
 #define MSM_CCI_DRV_NAME "msm_cci"
