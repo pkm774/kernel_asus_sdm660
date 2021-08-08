@@ -1107,6 +1107,7 @@ static ssize_t synaptics_rmi4_virtual_key_map_show(struct kobject *kobj,
 /* Huaqin modify  for ZQL1650-1523 by diganyun at 2018/06/07 start */
 
 long syna_gesture_mode = 0;
+long syna_dclick_node = 0;
 long syna_screen_gesture = 0;
 struct synaptics_rmi4_data *syna_rmi4_data;
 struct kobject *syna_gesture_kobject;
@@ -1114,14 +1115,14 @@ struct kobject *syna_gesture_kobject;
 static ssize_t gesture_show(struct kobject *kobj, struct kobj_attribute *attr,
                       char *buf)
 {
-        return sprintf(buf, "%d\n", syna_gesture_mode);
+        return sprintf(buf, "%d\n", syna_dclick_node);
 }
 
 static ssize_t gesture_store(struct kobject *kobj, struct kobj_attribute *attr,
                       const char *buf, size_t count)
 {
-	sscanf(buf, "%du", &syna_gesture_mode);
-	if (syna_gesture_mode == 0) {
+	sscanf(buf, "%du", &syna_dclick_node);
+	if (syna_dclick_node == 0) {
 		syna_gesture_mode = 0;
 		syna_rmi4_data->enable_wakeup_gesture = 0;
 	} else {

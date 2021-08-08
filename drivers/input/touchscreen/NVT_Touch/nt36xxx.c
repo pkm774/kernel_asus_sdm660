@@ -425,20 +425,21 @@ static uint8_t bTouchIsAwake = 0;
 #define NVT_GESTURE_MODE "tpd_gesture"
 
 long gesture_mode = 0;
+long dclick_node = 0;
 long screen_gesture = 0;
 struct kobject *gesture_kobject;
 
 static ssize_t gesture_show(struct kobject *kobj, struct kobj_attribute *attr,
                       char *buf)
 {
-	return sprintf(buf, "%d\n", gesture_mode);
+	return sprintf(buf, "%d\n", dclick_node);
 }
 
 static ssize_t gesture_store(struct kobject *kobj, struct kobj_attribute *attr,
                       const char *buf, size_t count)
 {
-	sscanf(buf, "%du", &gesture_mode);
-	if (gesture_mode == 0) {
+	sscanf(buf, "%du", &dclick_node);
+	if (dclick_node == 0) {
 		gesture_mode = 0;
 	} else {
 		gesture_mode = 0x1FF;
