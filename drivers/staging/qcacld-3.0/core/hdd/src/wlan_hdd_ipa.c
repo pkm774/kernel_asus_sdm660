@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -658,6 +658,7 @@ static int hdd_ipa_uc_enable_pipes(struct hdd_ipa_priv *hdd_ipa);
 static int hdd_ipa_wdi_init(struct hdd_ipa_priv *hdd_ipa);
 static void hdd_ipa_send_pkt_to_tl(struct hdd_ipa_iface_context *iface_context,
 		struct ipa_rx_data *ipa_tx_desc);
+static int hdd_ipa_setup_sys_pipe(struct hdd_ipa_priv *hdd_ipa);
 
 /**
  * hdd_ipa_uc_get_db_paddr() - Get Doorbell physical address
@@ -2575,7 +2576,7 @@ static int hdd_ipa_wdi_rm_try_release(struct hdd_ipa_priv *hdd_ipa)
 	 * while there is healthy amount of data transfer going on by
 	 * releasing the wake_lock after some delay.
 	 */
-	queue_delayed_work(system_power_efficient_wq, &hdd_ipa->wake_lock_work,
+	schedule_delayed_work(&hdd_ipa->wake_lock_work,
 			      msecs_to_jiffies
 				      (HDD_IPA_RX_INACTIVITY_MSEC_DELAY));
 
@@ -4060,6 +4061,19 @@ static void hdd_ipa_uc_loaded_handler(struct hdd_ipa_priv *ipa_ctxt)
 	if (!pdev) {
 		HDD_IPA_LOG(QDF_TRACE_LEVEL_FATAL, "invalid txrx context");
 		return;
+	}
+
+	/* Setup IPA sys_pipe for MCC */
+	if (hdd_ipa_uc_sta_is_enabled(ipa_ctxt->hdd_ctx)) {
+		ret = hdd_ipa_setup_sys_pipe(ipa_ctxt);
+		if (ret) {
+			HDD_IPA_LOG(QDF_TRACE_LEVEL_ERROR,
+				    "ipa sys pipes setup failed ret=%d", ret);
+			return;
+		}
+
+		INIT_WORK(&ipa_ctxt->mcc_work,
+				hdd_ipa_mcc_work_handler);
 	}
 
 	/* Connect pipe */
@@ -5765,40 +5779,6 @@ static enum hdd_ipa_forward_type hdd_ipa_intrabss_forward(
 }
 
 /**
- * wlan_ipa_eapol_intrabss_fwd_check() - Check if eapol pkt intrabss fwd is
- *  allowed or not
- * @nbuf: network buffer
- * @vdev_id: vdev id
- *
- * Return: true if intrabss fwd is allowed for eapol else false
- */
-static bool
-wlan_ipa_eapol_intrabss_fwd_check(qdf_nbuf_t nbuf, uint8_t vdev_id)
-{
-	ol_txrx_vdev_handle vdev;
-	uint8_t *vdev_mac_addr;
-
-	vdev = ol_txrx_get_vdev_from_vdev_id(vdev_id);
-
-	if (!vdev) {
-		HDD_IPA_LOG(QDF_TRACE_LEVEL_ERROR, "txrx vdev is NULL for vdev_id = %d",
-			    vdev_id);
-		return false;
-	}
-
-	vdev_mac_addr = ol_txrx_get_vdev_mac_addr( vdev);
-
-	if (!vdev_mac_addr)
-		return false;
-
-	if (qdf_mem_cmp(qdf_nbuf_data(nbuf) + QDF_NBUF_DEST_MAC_OFFSET,
-			vdev_mac_addr, QDF_MAC_ADDR_SIZE))
-		return false;
-
-	return true;
-}
-
-/**
  * __hdd_ipa_w2i_cb() - WLAN to IPA callback handler
  * @priv: pointer to private data registered with IPA (we register a
  *	pointer to the global IPA context)
@@ -5818,12 +5798,6 @@ static void __hdd_ipa_w2i_cb(void *priv, enum ipa_dp_evt_type evt,
 	struct hdd_ipa_iface_context *iface_context;
 	uint8_t fw_desc;
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
-	bool is_eapol_wapi = false;
-	struct qdf_mac_addr peer_mac_addr = QDF_MAC_ADDR_ZERO_INITIALIZER;
-	uint8_t sta_idx;
-	ol_txrx_peer_handle peer;
-	ol_txrx_pdev_handle pdev;
-	hdd_station_ctx_t *sta_ctx;
 
 	hdd_ipa = (struct hdd_ipa_priv *)priv;
 
@@ -5843,13 +5817,6 @@ static void __hdd_ipa_w2i_cb(void *priv, enum ipa_dp_evt_type evt,
 			HDD_IPA_LOG(QDF_TRACE_LEVEL_ERROR,
 					"Invalid context: drop packet");
 			hdd_ipa->ipa_rx_internal_drop_count++;
-			kfree_skb(skb);
-			return;
-		}
-
-		pdev = cds_get_context(QDF_MODULE_ID_TXRX);
-		if (NULL == pdev) {
-			WMA_LOGE("%s: DP pdev is NULL", __func__);
 			kfree_skb(skb);
 			return;
 		}
@@ -5894,52 +5861,6 @@ static void __hdd_ipa_w2i_cb(void *priv, enum ipa_dp_evt_type evt,
 			skb_pull(skb, HDD_IPA_UC_WLAN_CLD_HDR_LEN);
 		} else {
 			skb_pull(skb, HDD_IPA_WLAN_CLD_HDR_LEN);
-		}
-
-		if (iface_context->adapter->device_mode == QDF_STA_MODE) {
-			sta_ctx = WLAN_HDD_GET_STATION_CTX_PTR(
-							iface_context->adapter);
-			qdf_copy_macaddr(&peer_mac_addr,
-					 &sta_ctx->conn_info.bssId);
-		} else if (iface_context->adapter->device_mode
-			   == QDF_SAP_MODE) {
-			qdf_mem_copy(peer_mac_addr.bytes, qdf_nbuf_data(skb) +
-				     QDF_NBUF_SRC_MAC_OFFSET,
-				     QDF_MAC_ADDR_SIZE);
-		}
-
-		if (qdf_nbuf_is_ipv4_eapol_pkt(skb)) {
-			is_eapol_wapi = true;
-			if (iface_context->adapter->device_mode ==
-			    QDF_SAP_MODE &&
-			    !wlan_ipa_eapol_intrabss_fwd_check(skb,
-					   iface_context->adapter->sessionId)) {
-				HDD_IPA_LOG(QDF_TRACE_LEVEL_ERROR,
-					    "EAPOL intrabss fwd drop DA: %pM",
-					    qdf_nbuf_data(skb) +
-					    QDF_NBUF_DEST_MAC_OFFSET);
-				hdd_ipa->ipa_rx_internal_drop_count++;
-				kfree_skb(skb);
-				return;
-			}
-		} else if (qdf_nbuf_is_ipv4_wapi_pkt(skb)) {
-			is_eapol_wapi = true;
-		}
-
-		peer = ol_txrx_find_peer_by_addr(pdev, peer_mac_addr.bytes,
-						 &sta_idx);
-
-		/*
-		 * Check for peer auth state before allowing non-EAPOL/WAPI
-		 * frames to be intrabss forwarded or submitted to stack.
-		 */
-		if (peer && ol_txrx_get_peer_state(peer) !=
-		    OL_TXRX_PEER_STATE_AUTH && !is_eapol_wapi) {
-			HDD_IPA_LOG(QDF_TRACE_LEVEL_ERROR,
-				    "non-EAPOL/WAPI frame received when peer is unauthorized");
-			hdd_ipa->ipa_rx_internal_drop_count++;
-			kfree_skb(skb);
-			return;
 		}
 
 		iface_context->stats.num_rx_ipa_excep++;
@@ -6862,7 +6783,7 @@ void hdd_ipa_set_mcc_mode(bool mcc_mode)
 	schedule_work(&hdd_ipa->mcc_work);
 }
 
-static void hdd_ipa_mcc_work_handler(struct work_struct *work)
+void hdd_ipa_mcc_work_handler(struct work_struct *work)
 {
 	struct hdd_ipa_priv *hdd_ipa;
 	hdd_context_t *hdd_ctx;
@@ -7596,14 +7517,6 @@ static QDF_STATUS __hdd_ipa_init(hdd_context_t *hdd_ctx)
 		hdd_ipa->sta_connected = 0;
 		hdd_ipa->ipa_pipes_down = true;
 		hdd_ipa->wdi_enabled = false;
-		/* Setup IPA sys_pipe for MCC */
-		if (hdd_ipa_uc_sta_is_enabled(hdd_ipa->hdd_ctx)) {
-			ret = hdd_ipa_setup_sys_pipe(hdd_ipa);
-			if (ret)
-				goto fail_create_sys_pipe;
-
-			INIT_WORK(&hdd_ipa->mcc_work, hdd_ipa_mcc_work_handler);
-		}
 
 		ret = hdd_ipa_wdi_init(hdd_ipa);
 		if (ret) {
@@ -7611,15 +7524,25 @@ static QDF_STATUS __hdd_ipa_init(hdd_context_t *hdd_ctx)
 					"ipa wdi init failed ret=%d", ret);
 			if (ret == -EACCES) {
 				if (hdd_ipa_uc_send_wdi_control_msg(false))
-					goto fail_create_sys_pipe;
+					goto ipa_wdi_destroy;
 			} else {
-				goto fail_create_sys_pipe;
+				goto ipa_wdi_destroy;
+			}
+		} else {
+			/* Setup IPA sys_pipe for MCC */
+			if (hdd_ipa_uc_sta_is_enabled(hdd_ipa->hdd_ctx)) {
+				ret = hdd_ipa_setup_sys_pipe(hdd_ipa);
+				if (ret)
+					goto ipa_wdi_destroy;
+
+				INIT_WORK(&hdd_ipa->mcc_work,
+					  hdd_ipa_mcc_work_handler);
 			}
 		}
 	} else {
 		ret = hdd_ipa_setup_sys_pipe(hdd_ipa);
 		if (ret)
-			goto fail_create_sys_pipe;
+			goto ipa_wdi_destroy;
 	}
 
 	init_completion(&hdd_ipa->ipa_resource_comp);
@@ -7627,7 +7550,7 @@ static QDF_STATUS __hdd_ipa_init(hdd_context_t *hdd_ctx)
 	HDD_IPA_LOG(QDF_TRACE_LEVEL_DEBUG, "exit: success");
 	return QDF_STATUS_SUCCESS;
 
-fail_create_sys_pipe:
+ipa_wdi_destroy:
 	hdd_ipa_wdi_destroy_rm(hdd_ipa);
 fail_setup_rm:
 	qdf_spinlock_destroy(&hdd_ipa->pm_lock);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -757,7 +757,7 @@ lim_fill_assoc_ind_params(tpAniSirGlobal mac_ctx,
 	if (assoc_ind->VHTCaps.present)
 		sme_assoc_ind->VHTCaps = assoc_ind->VHTCaps;
 	sme_assoc_ind->capability_info = assoc_ind->capabilityInfo;
-
+	sme_assoc_ind->is_sae_authenticated = assoc_ind->is_sae_authenticated;
 }
 
 /**
@@ -1977,15 +1977,7 @@ void lim_process_ap_mlm_add_sta_rsp(tpAniSirGlobal pMac, tpSirMsgQ limMsgQ,
 	 * 2) PE receives eWNI_SME_ASSOC_CNF from SME
 	 * 3) BTAMP-AP sends Re/Association Response to BTAMP-STA
 	 */
-	if (lim_send_mlm_assoc_ind(pMac, pStaDs, psessionEntry) !=
-							QDF_STATUS_SUCCESS) {
-		lim_reject_association(pMac, pStaDs->staAddr,
-				       pStaDs->mlmStaContext.subType,
-				       true, pStaDs->mlmStaContext.authType,
-				       pStaDs->assocId, true,
-				       eSIR_MAC_UNSPEC_FAILURE_STATUS,
-				       psessionEntry);
-	}
+	lim_send_mlm_assoc_ind(pMac, pStaDs, psessionEntry);
 	/* fall though to reclaim the original Add STA Response message */
 end:
 	if (0 != limMsgQ->bodyptr) {
