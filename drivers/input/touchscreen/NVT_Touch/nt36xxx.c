@@ -432,13 +432,13 @@ struct kobject *gesture_kobject;
 static ssize_t gesture_show(struct kobject *kobj, struct kobj_attribute *attr,
                       char *buf)
 {
-	return sprintf(buf, "%d\n", dclick_node);
+	return sprintf(buf, "%ld\n", dclick_node);
 }
 
 static ssize_t gesture_store(struct kobject *kobj, struct kobj_attribute *attr,
                       const char *buf, size_t count)
 {
-	sscanf(buf, "%du", &dclick_node);
+	sscanf(buf, "%ld", &dclick_node);
 	if (dclick_node == 0) {
 		gesture_mode = 0;
 	} else {
@@ -454,13 +454,13 @@ static struct kobj_attribute gesture_attribute = __ATTR(dclicknode, 0664, gestur
 static ssize_t screengesture_show(struct kobject *kobj, struct kobj_attribute *attr,
                       char *buf)
 {
-        return sprintf(buf, "%d\n", screen_gesture);
+        return sprintf(buf, "%ld\n", screen_gesture);
 }
 
 static ssize_t screengesture_store(struct kobject *kobj, struct kobj_attribute *attr,
                       const char *buf, size_t count)
 {
-	sscanf(buf, "%du", &screen_gesture);
+	sscanf(buf, "%ld", &screen_gesture);
 	if (screen_gesture == 0) {
 		gesture_mode = 0;
 	} else {

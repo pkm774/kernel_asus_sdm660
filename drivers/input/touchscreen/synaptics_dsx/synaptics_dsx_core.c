@@ -1115,13 +1115,13 @@ struct kobject *syna_gesture_kobject;
 static ssize_t gesture_show(struct kobject *kobj, struct kobj_attribute *attr,
                       char *buf)
 {
-        return sprintf(buf, "%d\n", syna_dclick_node);
+        return sprintf(buf, "%ld\n", syna_dclick_node);
 }
 
 static ssize_t gesture_store(struct kobject *kobj, struct kobj_attribute *attr,
                       const char *buf, size_t count)
 {
-	sscanf(buf, "%du", &syna_dclick_node);
+	sscanf(buf, "%ld", &syna_dclick_node);
 	if (syna_dclick_node == 0) {
 		syna_gesture_mode = 0;
 		syna_rmi4_data->enable_wakeup_gesture = 0;
@@ -1139,13 +1139,13 @@ static struct kobj_attribute gesture_attribute = __ATTR(dclicknode, 0664, gestur
 static ssize_t screengesture_show(struct kobject *kobj, struct kobj_attribute *attr,
                       char *buf)
 {
-        return sprintf(buf, "%d\n", syna_screen_gesture);
+        return sprintf(buf, "%ld\n", syna_screen_gesture);
 }
 
 static ssize_t screengesture_store(struct kobject *kobj, struct kobj_attribute *attr,
                       const char *buf, size_t count)
 {
-	sscanf(buf, "%du", &syna_screen_gesture);
+	sscanf(buf, "%ld", &syna_screen_gesture);
 	if (syna_screen_gesture == 0) {
 		syna_gesture_mode = 0;
 		syna_rmi4_data->enable_wakeup_gesture = 0;
